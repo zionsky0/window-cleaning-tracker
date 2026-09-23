@@ -79,10 +79,21 @@ export default function HomePage() {
   };
 
   // Add customer callback
-  const handleCustomerAdded = () => {
-    // Reload latest from local storage
-    const updated = getLocalCustomers();
-    setCustomers(updated);
+  const handleAddCustomer = (newCustomer: Customer) => {
+    const updated = [newCustomer, ...customers];
+    updateCustomers(updated);
+  };
+
+  // Update customer callback
+  const handleUpdateCustomer = (id: string, updates: Partial<Customer>) => {
+    const updated = customers.map((c) => (c.id === id ? { ...c, ...updates } : c));
+    updateCustomers(updated);
+  };
+
+  // Delete customer callback
+  const handleDeleteCustomer = (id: string) => {
+    const updated = customers.filter((c) => c.id !== id);
+    updateCustomers(updated);
   };
 
   // Import customers from CSV
@@ -294,12 +305,13 @@ export default function HomePage() {
       <AddCustomerModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onCustomerAdded={handleCustomerAdded}
+        onAddCustomer={handleAddCustomer}
       />
       <EditCustomerModal
         customer={editingCustomer}
         onClose={() => setEditingCustomer(null)}
-        onCustomerUpdated={handleCustomerAdded}
+        onUpdateCustomer={handleUpdateCustomer}
+        onDeleteCustomer={handleDeleteCustomer}
       />
       <SyncModal
         isOpen={isSyncModalOpen}

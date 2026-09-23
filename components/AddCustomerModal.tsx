@@ -2,19 +2,19 @@
 
 import React, { useState } from 'react';
 import { X, UserPlus, PoundSterling, Calendar, Phone, MapPin, FileText, Check } from 'lucide-react';
-import { FrequencyWeeks } from '@/lib/types';
+import { Customer, FrequencyWeeks } from '@/lib/types';
 import { getTodayDateString } from '@/lib/dateUtils';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCustomerAdded: () => void;
+  onAddCustomer: (customer: Customer) => void;
 }
 
 export function AddCustomerModal({
   isOpen,
   onClose,
-  onCustomerAdded,
+  onAddCustomer,
 }: AddCustomerModalProps) {
   if (!isOpen) return null;
 
@@ -26,48 +26,37 @@ export function AddCustomerModal({
   const [nextDueDate, setNextDueDate] = useState(getTodayDateString());
   const [notes, setNotes] = useState('');
   const [preferredContact, setPreferredContact] = useState<'sms' | 'whatsapp'>('sms');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !address.trim()) {
       setErrorMessage('Please provide both a customer name and address.');
       return;
     }
 
-    setIsSubmitting(true);
-    setErrorMessage('');
+    const newCustomer: Customer = {
+      id: `cust-${Date.now()}`,
+      name: name.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      price: Number(price) || 0,
+      frequencyWeeks,
+      nextDueDate: nextDueDate || getTodayDateString(),
+      status: 'active',
+      notes: notes.trim(),
+      preferredContact,
+    };
 
-    try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          price: Number(price) || 0,
-          frequencyWeeks,
-          nextDueDate,
-          notes: notes.trim(),
-          preferredContact,
-          status: 'active',
-        }),
-      });
+    onAddCustomer(newCustomer);
+    onClose();
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to save customer');
-      }
-
-      onCustomerAdded();
-      onClose();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error adding customer');
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Reset fields for next time
+    setName('');
+    setPhone('');
+    setAddress('');
+    setPrice('');
+    setNotes('');
   };
 
   return (
@@ -132,7 +121,7 @@ export function AddCustomerModal({
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1 flex items-center gap-1">
               <Phone className="w-3.5 h-3.5 text-slate-400" />
-              Mobile Phone (for "On My Way" texts)
+              Mobile Phone (for &quot;On My Way&quot; texts)
             </label>
             <input
               type="tel"
@@ -154,7 +143,7 @@ export function AddCustomerModal({
                 type="number"
                 min="0"
                 step="1"
-                required
+                placeholder="e.g. 25"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
@@ -220,11 +209,10 @@ export function AddCustomerModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white font-bold text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
+              className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               <Check className="w-4 h-4 stroke-[3]" />
-              <span>{isSubmitting ? 'Saving...' : 'Add Customer'}</span>
+              <span>Add Customer</span>
             </button>
           </div>
         </form>
