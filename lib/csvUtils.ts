@@ -51,7 +51,13 @@ export function downloadCSV(csvContent: string, filename: string = 'clearview-ro
 }
 
 export function parseCSVToCustomers(csvText: string): Omit<Customer, 'id'>[] {
-  const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  // Strip Markdown code blocks if user copied from ChatGPT/Claude with ```csv ... ```
+  let cleanText = csvText.trim();
+  if (cleanText.startsWith('```')) {
+    cleanText = cleanText.replace(/^```[a-z]*\r?\n/, '').replace(/\r?\n```$/, '');
+  }
+
+  const lines = cleanText.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
 
   const parseRow = (line: string): string[] => {
@@ -79,34 +85,53 @@ export function parseCSVToCustomers(csvText: string): Omit<Customer, 'id'>[] {
     return result;
   };
 
+  const rawHeaders = parseRow(lines[0]);
+  const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z]/g, ''));
+
+  // Intelligent header detection
+  const nameIdx = headers.findIndex((h) => h.includes('name'));
+  const phoneIdx = headers.findIndex((h) => h.includes('phone') || h.includes('mobile') || h.includes('tel'));
+  const addressIdx = headers.findIndex((h) => h.includes('address') || h.includes('street') || h.includes('location'));
+  const priceIdx = headers.findIndex((h) => h.includes('price') || h.includes('cost') || h.includes('rate') || h.includes('amount'));
+  const freqIdx = headers.findIndex((h) => h.includes('freq') || h.includes('every') || h.includes('interval') || h.includes('weeks'));
+  const lastCleanIdx = headers.findIndex((h) => h.includes('lastclean') || h.includes('lastdate'));
+  const nextDueIdx = headers.findIndex((h) => h.includes('nextdue') || h.includes('duedate') || h.includes('due'));
+  const statusIdx = headers.findIndex((h) => h.includes('status'));
+  const notesIdx = headers.findIndex((h) => h.includes('note') || h.includes('comment') || h.includes('info'));
+  const contactIdx = headers.findIndex((h) => h.includes('contact') || h.includes('preferred'));
+
   const customers: Omit<Customer, 'id'>[] = [];
+  const todayStr = new Date().toISOString().split('T')[0];
 
   for (let i = 1; i < lines.length; i++) {
     const cols = parseRow(lines[i]);
-    if (cols.length < 4) continue;
+    if (cols.length < 2) continue;
 
-    const name = cols[1] || cols[0];
-    const phone = cols[2] || '';
-    const address = cols[3] || '';
-    const price = Number(cols[4]?.replace(/[^0-9.]/g, '')) || 25;
-    const freq = (Number(cols[5]) || 4) as FrequencyWeeks;
-    const lastCleanedDate = cols[6] || undefined;
-    const nextDueDate = cols[7] || new Date().toISOString().split('T')[0];
-    const status = cols[8]?.toLowerCase() === 'paused' ? 'paused' : 'active';
-    const notes = cols[9] || '';
-    const preferredContact = cols[10]?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'sms';
+    const name = nameIdx !== -1 ? cols[nameIdx] : (cols[1] || cols[0]);
+    const phone = phoneIdx !== -1 ? cols[phoneIdx] : (cols[2] || '');
+    const address = addressIdx !== -1 ? cols[addressIdx] : (cols[3] || cols[1] || '');
+    const rawPrice = priceIdx !== -1 ? cols[priceIdx] : cols[4];
+    const price = Number(rawPrice?.replace(/[^0-9.]/g, '')) || 25;
+    const rawFreq = freqIdx !== -1 ? cols[freqIdx] : cols[5];
+    const freqNum = Number(rawFreq?.replace(/[^0-9]/g, '')) || 4;
+    const freq: FrequencyWeeks = [2, 4, 6, 8, 12].includes(freqNum) ? (freqNum as FrequencyWeeks) : 4;
+    const lastCleanedDate = lastCleanIdx !== -1 && cols[lastCleanIdx] ? cols[lastCleanIdx] : undefined;
+    const nextDueDate = (nextDueIdx !== -1 && cols[nextDueIdx]) ? cols[nextDueIdx] : todayStr;
+    const status = statusIdx !== -1 && cols[statusIdx]?.toLowerCase() === 'paused' ? 'paused' : 'active';
+    const notes = notesIdx !== -1 ? cols[notesIdx] : '';
+    const preferredContact = contactIdx !== -1 && cols[contactIdx]?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'sms';
 
-    if (name && address) {
+    if (name && (address || phone)) {
       customers.push({
-        name,
-        phone,
-        address,
+        name: name.replace(/^["']|["']$/g, ''),
+        phone: phone.replace(/^["']|["']$/g, ''),
+        address: (address || 'Address pending').replace(/^["']|["']$/g, ''),
         price,
         frequencyWeeks: freq,
         lastCleanedDate,
         nextDueDate,
         status,
-        notes,
+        notes: notes.replace(/^["']|["']$/g, ''),
         preferredContact,
       });
     }

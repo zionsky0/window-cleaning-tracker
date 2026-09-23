@@ -4,11 +4,23 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Users, Plus, RefreshCw } from 'lucide-react';
 import { Customer, AppStats, FrequencyWeeks } from '@/lib/types';
-import { getTodayDateString, getDaysDifference, addWeeksToDate } from '@/lib/dateUtils';
-import { getLocalCustomers, setLocalCustomers, getLocalUser, setLocalUser, CleanerUser } from '@/lib/storage';
+import {
+  getTodayDateString,
+  getDaysDifference,
+  addWeeksToDate,
+  getCurrentWeekDates,
+} from '@/lib/dateUtils';
+import {
+  getLocalCustomers,
+  setLocalCustomers,
+  getLocalUser,
+  setLocalUser,
+  CleanerUser,
+} from '@/lib/storage';
 import { Header } from '@/components/Header';
 import { FilterBar, TabType } from '@/components/FilterBar';
 import { CustomerCard } from '@/components/CustomerCard';
+import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { OnMyWayModal } from '@/components/OnMyWayModal';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { EditCustomerModal } from '@/components/EditCustomerModal';
@@ -21,6 +33,7 @@ export default function HomePage() {
   const [businessName, setBusinessName] = useState('ClearView');
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentTab, setCurrentTab] = useState<TabType>('today');
+  const [selectedWeekDate, setSelectedWeekDate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
@@ -125,6 +138,9 @@ export default function HomePage() {
     let completedTodayCount = 0,
       completedTodayEarnings = 0;
 
+    const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
+    const weekSet = new Set(weekDates);
+
     customers.forEach((c) => {
       if (c.status !== 'paused') totalActiveCount++;
 
@@ -143,7 +159,9 @@ export default function HomePage() {
       } else if (diff === 0) {
         dueTodayCount++;
         todayEstimatedEarnings += c.price;
-      } else if (diff <= 7) {
+      }
+
+      if (weekSet.has(c.nextDueDate)) {
         dueThisWeekCount++;
       }
     });
@@ -186,11 +204,17 @@ export default function HomePage() {
         return a.nextDueDate.localeCompare(b.nextDueDate);
       });
     } else if (currentTab === 'week') {
-      filtered = filtered.filter((c) => {
-        if (c.status === 'paused') return false;
-        const diff = getDaysDifference(c.nextDueDate, todayStr);
-        return diff >= 0 && diff <= 7;
-      });
+      if (selectedWeekDate) {
+        filtered = filtered.filter(
+          (c) => c.status !== 'paused' && c.nextDueDate === selectedWeekDate
+        );
+      } else {
+        const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
+        const weekSet = new Set(weekDates);
+        filtered = filtered.filter(
+          (c) => c.status !== 'paused' && weekSet.has(c.nextDueDate)
+        );
+      }
       filtered.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
     } else if (currentTab === 'completed') {
       filtered = filtered.filter((c) => c.lastCleanedDate === todayStr);
@@ -203,17 +227,24 @@ export default function HomePage() {
     }
 
     return filtered;
-  }, [customers, searchQuery, currentTab, todayStr]);
+  }, [customers, searchQuery, currentTab, selectedWeekDate, todayStr]);
 
   const tabCounts = useMemo(
     () => ({
       today: stats.overdueCount + stats.dueTodayCount,
-      week: stats.dueThisWeekCount + stats.dueTodayCount,
+      week: stats.dueThisWeekCount,
       all: customers.length,
       completed: stats.completedTodayCount,
     }),
     [stats, customers.length]
   );
+
+  const handleTabChange = (tab: TabType) => {
+    setCurrentTab(tab);
+    if (tab !== 'week') {
+      setSelectedWeekDate(null);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -236,7 +267,7 @@ export default function HomePage() {
 
       <FilterBar
         currentTab={currentTab}
-        onTabChange={setCurrentTab}
+        onTabChange={handleTabChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         todayCount={tabCounts.today}
@@ -246,6 +277,15 @@ export default function HomePage() {
       />
 
       <main className="flex-1 p-3.5 space-y-3 pb-24">
+        {/* Weekly Calendar Widget when in 'week' view */}
+        {currentTab === 'week' && (
+          <WeeklyCalendar
+            customers={customers}
+            selectedDate={selectedWeekDate}
+            onSelectDate={setSelectedWeekDate}
+          />
+        )}
+
         {filteredCustomers.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 shadow-xs">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
@@ -259,7 +299,9 @@ export default function HomePage() {
                   : currentTab === 'today'
                   ? 'All caught up! No cleans overdue or due today.'
                   : currentTab === 'week'
-                  ? 'No cleans scheduled for this week.'
+                  ? selectedWeekDate
+                    ? 'No cleans scheduled for this selected day.'
+                    : 'No cleans scheduled for this week.'
                   : 'Tap the Add button to create your first customer.'}
               </p>
             </div>

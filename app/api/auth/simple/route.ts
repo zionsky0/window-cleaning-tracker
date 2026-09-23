@@ -61,11 +61,11 @@ export async function POST(req: NextRequest) {
     const { action, identifier, pin, businessName, cleanerName, customers } = body;
 
     const cleanIdentifier = identifier?.trim().toLowerCase();
-    const cleanPin = pin?.trim();
+    const cleanPassword = (pin || body.password)?.trim();
 
-    if (!cleanIdentifier || !cleanPin) {
+    if (!cleanIdentifier || !cleanPassword) {
       return NextResponse.json(
-        { error: 'Phone number (or email) and 4-digit PIN are required' },
+        { error: 'Phone number (or email) and password are required' },
         { status: 400 }
       );
     }
@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
       const existing = await getAccount(cleanIdentifier);
 
       if (existing) {
-        if (existing.pinOrPassword !== cleanPin) {
+        if (existing.pinOrPassword !== cleanPassword) {
           return NextResponse.json(
-            { error: 'Incorrect PIN. Please enter the 4-digit PIN you used when you first registered.' },
+            { error: 'Incorrect password. Please enter the password you used when you first registered.' },
             { status: 401 }
           );
         }

@@ -27,9 +27,6 @@ export function addWeeksToDate(dateString: string, weeks: number): string {
 
 /**
  * Computes difference in calendar days between targetDate and today.
- * Negative means in the past (overdue).
- * 0 means today.
- * Positive means in the future.
  */
 export function getDaysDifference(targetDateString: string, baseDateString = getTodayDateString()): number {
   const [y1, m1, d1] = targetDateString.split('-').map(Number);
@@ -64,7 +61,7 @@ export function getCustomerDueCategory(customer: Customer, todayStr = getTodayDa
 }
 
 /**
- * Human friendly display of due dates (e.g. "Today", "Yesterday", "3 days overdue", "In 2 days")
+ * Human friendly display of due dates
  */
 export function formatFriendlyDue(targetDateString: string, todayStr = getTodayDateString()): {
   text: string;
@@ -131,4 +128,50 @@ export function formatDateDisplay(dateStr?: string): string {
     day: 'numeric',
     month: 'short',
   });
+}
+
+export interface WeekDayInfo {
+  dateString: string;
+  dayName: string;
+  dayNumber: number;
+  monthName: string;
+  isToday: boolean;
+  isPast: boolean;
+}
+
+/**
+ * Returns the 7 days of the current week (Monday to Sunday)
+ */
+export function getCurrentWeekDates(todayStr = getTodayDateString()): WeekDayInfo[] {
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const today = new Date(y, m - 1, d);
+
+  // Monday is day 1 in UK weeks (Sunday is 0 in JS)
+  const dayOfWeek = today.getDay();
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + distanceToMonday);
+
+  const days: WeekDayInfo[] = [];
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+
+    const year = cur.getFullYear();
+    const month = String(cur.getMonth() + 1).padStart(2, '0');
+    const day = String(cur.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+
+    days.push({
+      dateString,
+      dayName: cur.toLocaleDateString('en-GB', { weekday: 'short' }),
+      dayNumber: cur.getDate(),
+      monthName: cur.toLocaleDateString('en-GB', { month: 'short' }),
+      isToday: dateString === todayStr,
+      isPast: dateString < todayStr,
+    });
+  }
+
+  return days;
 }
