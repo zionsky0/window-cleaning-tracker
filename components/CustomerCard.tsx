@@ -56,7 +56,26 @@ export function CustomerCard({
     >
       {/* Top Header Section of Card */}
       <div className="p-4 pb-3">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
+          {/* Quick Checkoff Checkbox */}
+          <button
+            type="button"
+            onClick={() => onMarkComplete(customer)}
+            disabled={isCompleting}
+            title={isDoneToday ? 'Completed today (Click to uncheck)' : 'Click to check off (mark done)'}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0 flex items-center justify-center transition-all active:scale-90 mt-0.5 cursor-pointer ${
+              isDoneToday
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
+                : 'border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/80 text-slate-300'
+            }`}
+          >
+            {isCompleting ? (
+              <RotateCcw className="w-4 h-4 animate-spin text-slate-500" />
+            ) : isDoneToday ? (
+              <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3] text-white animate-in zoom-in-50 duration-150" />
+            ) : null}
+          </button>
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               {/* Route Stop Number Badge */}
@@ -67,7 +86,11 @@ export function CustomerCard({
                 </span>
               )}
 
-              <h3 className="font-bold text-base text-slate-900 leading-snug truncate">
+              <h3
+                className={`font-bold text-base leading-snug truncate transition-all ${
+                  isDoneToday ? 'line-through text-slate-400' : 'text-slate-900'
+                }`}
+              >
                 {customer.name}
               </h3>
               

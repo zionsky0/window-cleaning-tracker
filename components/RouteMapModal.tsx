@@ -36,6 +36,7 @@ interface RouteMapModalProps {
   customers: Customer[];
   onApplyRouteOrder: (orderedCustomers: Customer[]) => void;
   onStartRouteRunner: (orderedCustomers: Customer[]) => void;
+  onMarkComplete?: (customer: Customer) => void;
 }
 
 export function RouteMapModal({
@@ -44,6 +45,7 @@ export function RouteMapModal({
   customers,
   onApplyRouteOrder,
   onStartRouteRunner,
+  onMarkComplete,
 }: RouteMapModalProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
@@ -422,15 +424,39 @@ export function RouteMapModal({
               {orderedStops.map((stop, index) => (
                 <div
                   key={stop.customer.id}
-                  className="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs hover:border-slate-300 transition-all"
+                  className={`bg-white border rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs transition-all ${
+                    stop.customer.lastCleanedDate === new Date().toISOString().split('T')[0]
+                      ? 'border-emerald-300 bg-emerald-50/30'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Checkbox button */}
+                    <button
+                      type="button"
+                      onClick={() => onMarkComplete && onMarkComplete(stop.customer)}
+                      className={`w-6 h-6 rounded-lg shrink-0 flex items-center justify-center transition-all ${
+                        stop.customer.lastCleanedDate === new Date().toISOString().split('T')[0]
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'border-2 border-slate-300 hover:border-emerald-500 text-transparent'
+                      }`}
+                      title="Check off stop"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
+
                     <span className="w-6 h-6 rounded-full bg-brand-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
                       {stop.stopIndex}
                     </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900 truncate">
+                        <span
+                          className={`font-bold text-xs truncate ${
+                            stop.customer.lastCleanedDate === new Date().toISOString().split('T')[0]
+                              ? 'line-through text-slate-400'
+                              : 'text-slate-900'
+                          }`}
+                        >
                           {stop.customer.name}
                         </span>
                         <span className="font-extrabold text-[11px] text-emerald-700">

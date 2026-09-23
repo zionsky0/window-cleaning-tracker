@@ -81,43 +81,56 @@ export default function HomePage() {
 
   const todayStr = getTodayDateString();
 
-  // Mark Customer Clean Completed
+  // Mark / Toggle Customer Clean Completed
   const handleMarkComplete = async (customer: Customer) => {
     setCompletingId(customer.id);
 
     try {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.7 },
-        colors: ['#0284c7', '#38bdf8', '#10b981', '#34d399', '#f59e0b'],
-      });
+      const isDoneToday = customer.lastCleanedDate === todayStr;
 
-      const nextDue = addWeeksToDate(todayStr, customer.frequencyWeeks || 4);
-      const updatedList = customers.map((c) =>
-        c.id === customer.id
-          ? { ...c, lastCleanedDate: todayStr, nextDueDate: nextDue }
-          : c
-      );
-
-      updateCustomers(updatedList);
-
-      // Auto-advance active route if running
-      if (activeRoute?.isActive) {
-        const nextUnfinishedIdx = activeRoute.stopIds.findIndex((id) => {
-          if (id === customer.id) return false;
-          const c = updatedList.find((cust) => cust.id === id);
-          return c && c.lastCleanedDate !== todayStr;
+      if (isDoneToday) {
+        // Toggle OFF (Uncheck)
+        const updatedList = customers.map((c) =>
+          c.id === customer.id
+            ? { ...c, lastCleanedDate: undefined, nextDueDate: todayStr }
+            : c
+        );
+        updateCustomers(updatedList);
+      } else {
+        // Toggle ON (Check off with confetti)
+        confetti({
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ['#0284c7', '#38bdf8', '#10b981', '#34d399', '#f59e0b'],
         });
 
-        if (nextUnfinishedIdx !== -1) {
-          const updatedRoute = { ...activeRoute, currentStopIndex: nextUnfinishedIdx };
-          setActiveRoute(updatedRoute);
-          setLocalActiveRoute(updatedRoute);
+        const nextDue = addWeeksToDate(todayStr, customer.frequencyWeeks || 4);
+        const updatedList = customers.map((c) =>
+          c.id === customer.id
+            ? { ...c, lastCleanedDate: todayStr, nextDueDate: nextDue }
+            : c
+        );
+
+        updateCustomers(updatedList);
+
+        // Auto-advance active route if running
+        if (activeRoute?.isActive) {
+          const nextUnfinishedIdx = activeRoute.stopIds.findIndex((id) => {
+            if (id === customer.id) return false;
+            const c = updatedList.find((cust) => cust.id === id);
+            return c && c.lastCleanedDate !== todayStr;
+          });
+
+          if (nextUnfinishedIdx !== -1) {
+            const updatedRoute = { ...activeRoute, currentStopIndex: nextUnfinishedIdx };
+            setActiveRoute(updatedRoute);
+            setLocalActiveRoute(updatedRoute);
+          }
         }
       }
     } catch (err) {
-      console.error('Failed to mark clean completed:', err);
+      console.error('Failed to toggle clean status:', err);
     } finally {
       setCompletingId(null);
     }
@@ -521,6 +534,7 @@ export default function HomePage() {
           handleStartRouteRunner(ordered);
         }}
         onStartRouteRunner={handleStartRouteRunner}
+        onMarkComplete={handleMarkComplete}
       />
       <OnMyWayModal
         customer={onMyWayCustomer}
