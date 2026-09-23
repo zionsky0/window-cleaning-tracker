@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { getCustomers, addCustomer } from '@/lib/sheets';
 import { getTodayDateString } from '@/lib/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
-async function getAccessToken(): Promise<string | undefined> {
-  const session = await getServerSession(authOptions);
-  return (session as any)?.accessToken;
-}
-
 export async function GET() {
   try {
-    const accessToken = await getAccessToken();
-    const data = await getCustomers(accessToken);
+    const data = await getCustomers();
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,7 +15,6 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const accessToken = await getAccessToken();
     const body = await req.json();
 
     if (!body.name || !body.address) {
@@ -43,7 +34,7 @@ export async function POST(req: NextRequest) {
       preferredContact: body.preferredContact === 'whatsapp' ? 'whatsapp' : 'sms',
     };
 
-    const result = await addCustomer(newCustomer as any, accessToken);
+    const result = await addCustomer(newCustomer as any);
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

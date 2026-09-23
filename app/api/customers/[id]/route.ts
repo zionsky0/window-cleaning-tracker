@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { updateCustomer, markCustomerCompleted, deleteCustomer } from '@/lib/sheets';
 
 export const dynamic = 'force-dynamic';
-
-async function getAccessToken(): Promise<string | undefined> {
-  const session = await getServerSession(authOptions);
-  return (session as any)?.accessToken;
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -16,15 +9,14 @@ export async function PATCH(
 ) {
   try {
     const id = params.id;
-    const accessToken = await getAccessToken();
     const body = await req.json();
 
     if (body.action === 'complete') {
-      const result = await markCustomerCompleted(id, accessToken);
+      const result = await markCustomerCompleted(id);
       return NextResponse.json(result);
     }
 
-    const result = await updateCustomer(id, body, accessToken);
+    const result = await updateCustomer(id, body);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -37,8 +29,7 @@ export async function DELETE(
 ) {
   try {
     const id = params.id;
-    const accessToken = await getAccessToken();
-    const result = await deleteCustomer(id, accessToken);
+    const result = await deleteCustomer(id);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

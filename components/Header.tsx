@@ -1,36 +1,32 @@
 'use client';
 
 import React from 'react';
-import { signOut } from 'next-auth/react';
-import { Sparkles, Plus, RefreshCw, CheckCircle2, LogOut } from 'lucide-react';
+import { Sparkles, Plus, Cloud, FileSpreadsheet, CheckCircle2, CloudCheck } from 'lucide-react';
 import { AppStats } from '@/lib/types';
+import { CleanerUser } from '@/lib/storage';
 
 interface HeaderProps {
   stats: AppStats;
-  userName?: string | null;
-  userImage?: string | null;
-  isDemoMode: boolean;
-  isLoading: boolean;
-  onRefresh: () => void;
+  businessName: string;
+  currentUser: CleanerUser | null;
   onOpenAddCustomer: () => void;
+  onOpenSync: () => void;
+  onOpenExport: () => void;
 }
 
 export function Header({
   stats,
-  userName,
-  userImage,
-  isDemoMode,
-  isLoading,
-  onRefresh,
+  businessName,
+  currentUser,
   onOpenAddCustomer,
+  onOpenSync,
+  onOpenExport,
 }: HeaderProps) {
   const todayFormatted = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'short',
   });
-
-  const firstName = userName?.split(' ')[0] || 'Cleaner';
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -42,71 +38,72 @@ export function Header({
           </div>
           <div>
             <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight">
-              ClearView
+              {businessName || 'ClearView'}
             </h1>
             <p className="text-xs text-slate-500 font-medium">{todayFormatted}</p>
           </div>
         </div>
 
         <div className="flex items-center space-x-1.5">
+          {/* Export / Spreadsheet Button */}
           <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            title="Refresh data"
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors active:scale-95 disabled:opacity-50"
+            onClick={onOpenExport}
+            title="Export to Google Sheets or Excel"
+            className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl border border-slate-200 transition-all active:scale-95 flex items-center gap-1 text-xs font-semibold"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-brand-600' : ''}`} />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span className="hidden sm:inline">Export</span>
           </button>
-          
-          {/* User avatar / sign out */}
-          {!isDemoMode && (
-            <button
-              onClick={() => signOut()}
-              title={`Signed in as ${userName || 'user'} — tap to sign out`}
-              className="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-slate-100 transition-colors active:scale-95"
-            >
-              {userImage ? (
-                <img
-                  src={userImage}
-                  alt=""
-                  className="w-7 h-7 rounded-full ring-2 ring-brand-200"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
-                  {firstName.charAt(0)}
-                </div>
-              )}
-              <LogOut className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-          )}
 
+          {/* Cloud Sync Button */}
+          <button
+            onClick={onOpenSync}
+            title={currentUser ? `Synced as ${currentUser.identifier}` : 'Save to Cloud / Log In'}
+            className={`p-2 rounded-xl border transition-all active:scale-95 flex items-center gap-1 text-xs font-semibold ${
+              currentUser
+                ? 'border-sky-200 bg-sky-50 text-sky-800'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Cloud className={`w-4 h-4 ${currentUser ? 'text-sky-600' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">
+              {currentUser ? 'Synced' : 'Sync'}
+            </span>
+          </button>
+
+          {/* Add Customer Button */}
           <button
             onClick={onOpenAddCustomer}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-3 py-2 rounded-xl shadow-sm shadow-brand-600/20 active:scale-95 transition-all"
+            className="flex items-center gap-1 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-sm shadow-brand-600/20 active:scale-95 transition-all"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <Plus className="w-4 h-4 stroke-[3]" />
             <span>Add</span>
           </button>
         </div>
       </div>
 
-      {/* Signed-in user greeting + sync status */}
+      {/* Sync Status Banner */}
       <div className="px-4 py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-        <span className="text-slate-600 font-medium">
-          {isDemoMode ? (
-            <span className="inline-flex items-center gap-1 text-amber-700">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              Demo Mode — sign in to save your data
+        <span className="text-slate-600 font-medium flex items-center gap-1.5">
+          {currentUser ? (
+            <span className="inline-flex items-center gap-1.5 text-emerald-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>Backed up to Cloud ({currentUser.identifier})</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-emerald-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Hi {firstName}! Syncing to your Google Sheet
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-slate-300" />
+              <span>Saved locally on phone</span>
+              <button
+                onClick={onOpenSync}
+                className="text-brand-600 font-bold hover:underline ml-1"
+              >
+                Enable Cloud Sync →
+              </button>
             </span>
           )}
         </span>
-        <span className="text-slate-400 font-medium text-[11px]">
+        <span className="text-slate-400 font-semibold text-[11px]">
           {stats.totalActiveCount} rounds
         </span>
       </div>

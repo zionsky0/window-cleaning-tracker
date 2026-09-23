@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { testConnection, resetDemoData } from '@/lib/sheets';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    const accessToken = (session as any)?.accessToken;
-    const status = await testConnection(accessToken);
+    const status = await testConnection();
     return NextResponse.json(status);
   } catch (error: any) {
     return NextResponse.json({ isConnected: false, error: error.message }, { status: 500 });
