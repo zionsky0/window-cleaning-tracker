@@ -1,19 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Customer } from '@/lib/types';
+import { Redis } from '@upstash/redis';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory cloud sync store for serverless requests
-const userStore: Record<
-  string,
-  {
-    pinOrPassword: string;
-    businessName: string;
-    cleanerName: string;
-    customers: Customer[];
-    updatedAt: string;
+interface AccountRecord {
+  pinOrPassword: string;
+  businessName: string;
+  cleanerName: string;
+  customers: Customer[];
+  updatedAt: string;
+}
+
+// In-memory fallback for local development or before cloud storage is linked
+const memoryStore: Record<string, AccountRecord> = {};
+
+function getCloudClient(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (url && token) {
+    try {
+      return new Redis({ url, token });
+    } catch (e) {
+      console.error('Failed to initialize cloud storage client:', e);
+    }
   }
-> = {};
+  return null;
+}
+
+async function getAccount(identifier: string): Promise<AccountRecord | null> {
+  const client = getCloudClient();
+  if (client) {
+    try {
+      const data = await client.get<AccountRecord>(`user:${identifier}`);
+      return data || null;
+    } catch (err) {
+      console.error('Cloud get error:', err);
+    }
+  }
+  return memoryStore[identifier] || null;
+}
+
+async function saveAccount(identifier: string, record: AccountRecord): Promise<void> {
+  const client = getCloudClient();
+  if (client) {
+    try {
+      await client.set(`user:${identifier}`, record);
+      return;
+    } catch (err) {
+      console.error('Cloud set error:', err);
+    }
+  }
+  memoryStore[identifier] = record;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,30 +65,29 @@ export async function POST(req: NextRequest) {
 
     if (!cleanIdentifier || !cleanPin) {
       return NextResponse.json(
-        { error: 'Identifier (phone or email) and PIN are required' },
+        { error: 'Phone number (or email) and 4-digit PIN are required' },
         { status: 400 }
       );
     }
 
-    // 1. Sign In / Register / Sync
     if (action === 'sync') {
-      const existing = userStore[cleanIdentifier];
+      const existing = await getAccount(cleanIdentifier);
 
       if (existing) {
-        // Verify PIN
         if (existing.pinOrPassword !== cleanPin) {
           return NextResponse.json(
-            { error: 'Incorrect PIN/password for this account' },
+            { error: 'Incorrect PIN. Please enter the 4-digit PIN you used when you first registered.' },
             { status: 401 }
           );
         }
 
-        // If client sent newer customers, update server; otherwise return server's copy
+        // If client has newer customers, merge/update
         if (Array.isArray(customers) && customers.length > 0) {
           existing.customers = customers;
           existing.updatedAt = new Date().toISOString();
           if (businessName) existing.businessName = businessName;
           if (cleanerName) existing.cleanerName = cleanerName;
+          await saveAccount(cleanIdentifier, existing);
         }
 
         return NextResponse.json({
@@ -60,8 +99,8 @@ export async function POST(req: NextRequest) {
           lastSyncedAt: existing.updatedAt,
         });
       } else {
-        // First time registering this phone/email account
-        const newRecord = {
+        // Register new account permanently
+        const newRecord: AccountRecord = {
           pinOrPassword: cleanPin,
           businessName: businessName?.trim() || 'ClearView',
           cleanerName: cleanerName?.trim() || 'Cleaner',
@@ -69,7 +108,7 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date().toISOString(),
         };
 
-        userStore[cleanIdentifier] = newRecord;
+        await saveAccount(cleanIdentifier, newRecord);
 
         return NextResponse.json({
           success: true,
