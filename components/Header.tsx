@@ -1,31 +1,28 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Settings, Plus, RefreshCw, AlertCircle, CheckCircle2, Database, UserCheck } from 'lucide-react';
+import { signOut } from 'next-auth/react';
+import { Sparkles, Plus, RefreshCw, CheckCircle2, LogOut } from 'lucide-react';
 import { AppStats } from '@/lib/types';
 
 interface HeaderProps {
   stats: AppStats;
-  businessName?: string;
+  userName?: string | null;
+  userImage?: string | null;
   isDemoMode: boolean;
   isLoading: boolean;
-  hasCustomSheet: boolean;
   onRefresh: () => void;
   onOpenAddCustomer: () => void;
-  onOpenSettings: () => void;
-  onOpenProfile: () => void;
 }
 
 export function Header({
   stats,
-  businessName = 'ClearView',
+  userName,
+  userImage,
   isDemoMode,
   isLoading,
-  hasCustomSheet,
   onRefresh,
   onOpenAddCustomer,
-  onOpenSettings,
-  onOpenProfile,
 }: HeaderProps) {
   const todayFormatted = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -33,27 +30,20 @@ export function Header({
     month: 'short',
   });
 
+  const firstName = userName?.split(' ')[0] || 'Cleaner';
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Top Bar */}
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
-          <button
-            onClick={onOpenProfile}
-            title="Edit business & cleaner profile"
-            className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 active:scale-95 transition-transform"
-          >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
             <Sparkles className="w-5 h-5" />
-          </button>
+          </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight truncate max-w-[170px] sm:max-w-[220px]">
-                {businessName}
-              </h1>
-              <span className="text-[10px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 shrink-0">
-                PRO
-              </span>
-            </div>
+            <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight">
+              ClearView
+            </h1>
             <p className="text-xs text-slate-500 font-medium">{todayFormatted}</p>
           </div>
         </div>
@@ -68,24 +58,28 @@ export function Header({
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-brand-600' : ''}`} />
           </button>
           
-          <button
-            onClick={onOpenProfile}
-            title="Cleaner Profile & Sheet Setup"
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors active:scale-95 relative"
-          >
-            <UserCheck className="w-4 h-4 text-brand-600" />
-            {hasCustomSheet && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-            )}
-          </button>
-
-          <button
-            onClick={onOpenSettings}
-            title="Settings & Guide"
-            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors active:scale-95"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {/* User avatar / sign out */}
+          {!isDemoMode && (
+            <button
+              onClick={() => signOut()}
+              title={`Signed in as ${userName || 'user'} — tap to sign out`}
+              className="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-slate-100 transition-colors active:scale-95"
+            >
+              {userImage ? (
+                <img
+                  src={userImage}
+                  alt=""
+                  className="w-7 h-7 rounded-full ring-2 ring-brand-200"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
+                  {firstName.charAt(0)}
+                </div>
+              )}
+              <LogOut className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+          )}
 
           <button
             onClick={onOpenAddCustomer}
@@ -97,32 +91,23 @@ export function Header({
         </div>
       </div>
 
-      {/* Google Sheets / Demo Mode Bar */}
+      {/* Signed-in user greeting + sync status */}
       <div className="px-4 py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5">
-          <Database className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-500">Database:</span>
+        <span className="text-slate-600 font-medium">
           {isDemoMode ? (
-            <button
-              onClick={onOpenProfile}
-              className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 font-medium underline underline-offset-2"
-            >
+            <span className="inline-flex items-center gap-1 text-amber-700">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              Demo Mode (Connect your Sheet)
-            </button>
+              Demo Mode — sign in to save your data
+            </span>
           ) : (
-            <button
-              onClick={onOpenProfile}
-              className="inline-flex items-center gap-1 text-emerald-700 font-medium hover:underline"
-            >
+            <span className="inline-flex items-center gap-1 text-emerald-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              {hasCustomSheet ? 'Your Personal Sheet Connected' : 'Google Sheet Connected'}
-            </button>
+              Hi {firstName}! Syncing to your Google Sheet
+            </span>
           )}
-        </div>
-
+        </span>
         <span className="text-slate-400 font-medium text-[11px]">
-          {stats.totalActiveCount} active rounds
+          {stats.totalActiveCount} rounds
         </span>
       </div>
 
@@ -130,8 +115,8 @@ export function Header({
       <div className="px-4 py-3 bg-white grid grid-cols-2 gap-2.5">
         <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3 flex flex-col justify-between">
           <span className="text-xs font-medium text-sky-800 flex items-center justify-between">
-            Today's Target
-            <span className="font-bold text-sky-900 bg-sky-200/80 px-1.5 py-0.2 rounded text-[11px]">
+            Today&apos;s Target
+            <span className="font-bold text-sky-900 bg-sky-200/80 px-1.5 py-0.5 rounded text-[11px]">
               {stats.dueTodayCount} Due
             </span>
           </span>
@@ -157,7 +142,7 @@ export function Header({
               £{stats.completedTodayEarnings}
             </span>
             <span className="text-xs font-semibold text-emerald-700">
-              {stats.completedTodayCount} completed
+              {stats.completedTodayCount} done
             </span>
           </div>
         </div>

@@ -31,19 +31,7 @@ export interface AppStats {
 export interface SheetConnectionInfo {
   isConnected: boolean;
   sheetId?: string;
-  serviceAccount?: string;
   isDemoMode: boolean;
   error?: string;
   rowCount?: number;
 }
-
-export interface UserProfile {
-  id: string;
-  businessName: string;
-  cleanerName: string;
-  phone?: string;
-  sheetId?: string;
-  sheetUrl?: string;
-  createdAt: string;
-}
-

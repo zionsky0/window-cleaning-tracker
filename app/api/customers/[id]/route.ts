@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { updateCustomer, markCustomerCompleted, deleteCustomer } from '@/lib/sheets';
 
 export const dynamic = 'force-dynamic';
+
+async function getAccessToken(): Promise<string | undefined> {
+  const session = await getServerSession(authOptions);
+  return (session as any)?.accessToken;
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -9,21 +16,18 @@ export async function PATCH(
 ) {
   try {
     const id = params.id;
-    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
+    const accessToken = await getAccessToken();
     const body = await req.json();
 
     if (body.action === 'complete') {
-      const result = await markCustomerCompleted(id, customSheetId);
+      const result = await markCustomerCompleted(id, accessToken);
       return NextResponse.json(result);
     }
 
-    const result = await updateCustomer(id, body, customSheetId);
+    const result = await updateCustomer(id, body, accessToken);
     return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Failed to update customer' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -33,13 +37,10 @@ export async function DELETE(
 ) {
   try {
     const id = params.id;
-    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
-    const result = await deleteCustomer(id, customSheetId);
+    const accessToken = await getAccessToken();
+    const result = await deleteCustomer(id, accessToken);
     return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Failed to delete customer' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

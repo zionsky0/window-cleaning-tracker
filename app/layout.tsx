@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import { Providers } from '@/components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ClearView | Window Cleaning Tracker',
-  description: 'Smart route and customer management for window cleaners with Google Sheets integration',
+  description: 'Smart route and customer management for window cleaners — backed by your own Google Sheet',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -28,9 +29,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-brand-100 selection:text-brand-900">
-        <div className="mx-auto max-w-lg min-h-screen flex flex-col shadow-sm bg-white border-x border-slate-200">
-          {children}
-        </div>
+        <Providers>
+          <div className="mx-auto max-w-lg min-h-screen flex flex-col shadow-sm bg-white border-x border-slate-200">
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
   );
