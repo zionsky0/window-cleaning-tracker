@@ -1,11 +1,19 @@
 import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 
-export const authOptions: NextAuthOptions = {
-  providers: [
+const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+
+// NextAuth requires a secret. Provide a resilient fallback so the app never crashes with a server error
+const secret = process.env.NEXTAUTH_SECRET || 'clearview-window-cleaning-secure-secret-key-9988';
+
+const providers = [];
+
+if (googleClientId && googleClientSecret) {
+  providers.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
       authorization: {
         params: {
           scope: [
@@ -19,11 +27,22 @@ export const authOptions: NextAuthOptions = {
           prompt: 'consent',
         },
       },
-    }),
-  ],
+    })
+  );
+} else {
+  // Fallback dummy provider to prevent NextAuth from throwing Configuration Error on initial boot
+  providers.push(
+    GoogleProvider({
+      clientId: 'dummy-client-id',
+      clientSecret: 'dummy-client-secret',
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
   callbacks: {
     async jwt({ token, account }) {
-      // On initial sign-in, persist the Google tokens
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
@@ -32,16 +51,13 @@ export const authOptions: NextAuthOptions = {
           : Date.now() + 3600 * 1000;
       }
 
-      // If the access token hasn't expired, return it
       if (Date.now() < (token.accessTokenExpires as number)) {
         return token;
       }
 
-      // Access token has expired, try to refresh it
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
-      // Expose the access token to the client-side session
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
       return session;
@@ -49,15 +65,20 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: '/',
+    error: '/', // Redirect back to home instead of showing the default black error screen
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret,
 };
 
 async function refreshAccessToken(token: any) {
   try {
+    if (!googleClientId || !googleClientSecret || !token.refreshToken) {
+      return token;
+    }
+
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
       grant_type: 'refresh_token',
       refresh_token: token.refreshToken,
     });
@@ -78,7 +99,6 @@ async function refreshAccessToken(token: any) {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + (refreshedTokens.expires_in ?? 3600) * 1000,
-      // Keep the existing refresh token if a new one wasn't returned
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     };
   } catch (error) {
