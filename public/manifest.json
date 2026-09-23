@@ -1,0 +1,16 @@
+{
+  "name": "ClearView Window Cleaning Tracker",
+  "short_name": "ClearView",
+  "description": "Customer and route management for window cleaners",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0284c7",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
