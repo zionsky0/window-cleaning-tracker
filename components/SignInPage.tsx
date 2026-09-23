@@ -81,14 +81,21 @@ export function SignInPage() {
         </p>
       </div>
 
-      {/* Try Demo Link */}
-      <div className="pb-8 text-center">
-        <a
-          href="/?demo=true"
-          className="text-xs font-semibold text-white/70 hover:text-white underline underline-offset-4 transition-colors"
-        >
-          Or try the demo without signing in →
-        </a>
+      {/* Footer Links for Google Verification */}
+      <div className="pb-8 text-center space-y-2">
+        <div>
+          <a
+            href="/?demo=true"
+            className="text-xs font-semibold text-white/70 hover:text-white underline underline-offset-4 transition-colors"
+          >
+            Or try the demo without signing in →
+          </a>
+        </div>
+        <div className="flex items-center justify-center gap-3 text-[11px] text-white/50 pt-2">
+          <a href="/privacy" className="hover:text-white/80 transition-colors">Privacy Policy</a>
+          <span>•</span>
+          <a href="/terms" className="hover:text-white/80 transition-colors">Terms of Service</a>
+        </div>
       </div>
     </div>
   );
