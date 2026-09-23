@@ -13,7 +13,32 @@ export interface Customer {
   status: 'active' | 'paused';
   notes?: string; // e.g. "Gate code #1234, watch dog"
   preferredContact?: 'sms' | 'whatsapp';
+  lat?: number;
+  lng?: number;
   createdAt?: string;
+}
+
+export type NavApp = 'google' | 'apple' | 'waze';
+
+export interface RouteStop {
+  customer: Customer;
+  stopIndex: number; // 1-based index (Stop #1, #2...)
+  distanceFromPrevMiles?: number;
+  driveMinutesFromPrev?: number;
+  streetName?: string;
+  isDoneToday?: boolean;
+}
+
+export interface ActiveRouteState {
+  isActive: boolean;
+  stopIds: string[]; // customer IDs in optimal sequence
+  currentStopIndex: number; // 0-based index of current active stop
+  totalDistanceMiles?: number;
+  totalDurationMinutes?: number;
+  startAddress?: string;
+  startLat?: number;
+  startLng?: number;
+  lastOptimizedAt: string;
 }
 
 export type DueCategory = 'overdue' | 'due_today' | 'due_this_week' | 'upcoming' | 'completed_today';

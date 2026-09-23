@@ -22,6 +22,7 @@ interface CustomerCardProps {
   onMarkComplete: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   isCompleting?: boolean;
+  stopNumber?: number;
 }
 
 export function CustomerCard({
@@ -30,6 +31,7 @@ export function CustomerCard({
   onMarkComplete,
   onEdit,
   isCompleting = false,
+  stopNumber,
 }: CustomerCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const todayStr = getTodayDateString();
@@ -57,6 +59,14 @@ export function CustomerCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
+              {/* Route Stop Number Badge */}
+              {stopNumber !== undefined && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-sky-600 text-white shadow-xs">
+                  <MapPin className="w-2.5 h-2.5" />
+                  Stop #{stopNumber}
+                </span>
+              )}
+
               <h3 className="font-bold text-base text-slate-900 leading-snug truncate">
                 {customer.name}
               </h3>

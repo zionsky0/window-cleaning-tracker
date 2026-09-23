@@ -63,3 +63,77 @@ export function setLocalUser(user: CleanerUser | null): void {
     console.error('Error saving local user:', err);
   }
 }
+
+const STORAGE_KEY_ACTIVE_ROUTE = 'clearview_active_route_v1';
+const STORAGE_KEY_START_LOCATION = 'clearview_start_loc_v1';
+const STORAGE_KEY_NAV_APP = 'clearview_nav_app_v1';
+
+import { ActiveRouteState, NavApp } from './types';
+
+export function getLocalActiveRoute(): ActiveRouteState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_ACTIVE_ROUTE);
+    if (data) return JSON.parse(data);
+  } catch (err) {
+    console.error('Error reading local active route:', err);
+  }
+  return null;
+}
+
+export function setLocalActiveRoute(route: ActiveRouteState | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (route) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_ROUTE, JSON.stringify(route));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_ROUTE);
+    }
+  } catch (err) {
+    console.error('Error saving local active route:', err);
+  }
+}
+
+export function getLocalStartLocation(): { address: string; lat?: number; lng?: number } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_START_LOCATION);
+    if (data) return JSON.parse(data);
+  } catch (err) {
+    console.error('Error reading start location:', err);
+  }
+  return null;
+}
+
+export function setLocalStartLocation(loc: { address: string; lat?: number; lng?: number } | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (loc) {
+      localStorage.setItem(STORAGE_KEY_START_LOCATION, JSON.stringify(loc));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_START_LOCATION);
+    }
+  } catch (err) {
+    console.error('Error saving start location:', err);
+  }
+}
+
+export function getLocalNavApp(): NavApp {
+  if (typeof window === 'undefined') return 'google';
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_NAV_APP);
+    if (val === 'apple' || val === 'waze' || val === 'google') return val;
+  } catch (err) {
+    console.error('Error reading nav app:', err);
+  }
+  return 'google';
+}
+
+export function setLocalNavApp(app: NavApp): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_NAV_APP, app);
+  } catch (err) {
+    console.error('Error saving nav app:', err);
+  }
+}
