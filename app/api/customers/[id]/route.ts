@@ -9,14 +9,15 @@ export async function PATCH(
 ) {
   try {
     const id = params.id;
+    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
     const body = await req.json();
 
     if (body.action === 'complete') {
-      const result = await markCustomerCompleted(id);
+      const result = await markCustomerCompleted(id, customSheetId);
       return NextResponse.json(result);
     }
 
-    const result = await updateCustomer(id, body);
+    const result = await updateCustomer(id, body, customSheetId);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(
@@ -32,7 +33,8 @@ export async function DELETE(
 ) {
   try {
     const id = params.id;
-    const result = await deleteCustomer(id);
+    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
+    const result = await deleteCustomer(id, customSheetId);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json(

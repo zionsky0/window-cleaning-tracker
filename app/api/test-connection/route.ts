@@ -3,9 +3,10 @@ import { testConnection, resetDemoData } from '@/lib/sheets';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const status = await testConnection();
+    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
+    const status = await testConnection(customSheetId);
     return NextResponse.json(status);
   } catch (error: any) {
     return NextResponse.json(

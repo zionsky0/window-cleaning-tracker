@@ -4,9 +4,10 @@ import { getTodayDateString } from '@/lib/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const data = await getCustomers();
+    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
+    const data = await getCustomers(customSheetId);
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json(
@@ -18,6 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const customSheetId = req.headers.get('x-sheet-id') || req.nextUrl.searchParams.get('sheetId') || undefined;
     const body = await req.json();
 
     if (!body.name || !body.address) {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
       preferredContact: body.preferredContact === 'whatsapp' ? 'whatsapp' : 'sms',
     };
 
-    const result = await addCustomer(newCustomer as any);
+    const result = await addCustomer(newCustomer as any, customSheetId);
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(

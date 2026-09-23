@@ -36,3 +36,14 @@ export interface SheetConnectionInfo {
   error?: string;
   rowCount?: number;
 }
+
+export interface UserProfile {
+  id: string;
+  businessName: string;
+  cleanerName: string;
+  phone?: string;
+  sheetId?: string;
+  sheetUrl?: string;
+  createdAt: string;
+}
+

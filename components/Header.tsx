@@ -1,25 +1,31 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Settings, Plus, RefreshCw, AlertCircle, CheckCircle2, Database } from 'lucide-react';
+import { Sparkles, Settings, Plus, RefreshCw, AlertCircle, CheckCircle2, Database, UserCheck } from 'lucide-react';
 import { AppStats } from '@/lib/types';
 
 interface HeaderProps {
   stats: AppStats;
+  businessName?: string;
   isDemoMode: boolean;
   isLoading: boolean;
+  hasCustomSheet: boolean;
   onRefresh: () => void;
   onOpenAddCustomer: () => void;
   onOpenSettings: () => void;
+  onOpenProfile: () => void;
 }
 
 export function Header({
   stats,
+  businessName = 'ClearView',
   isDemoMode,
   isLoading,
+  hasCustomSheet,
   onRefresh,
   onOpenAddCustomer,
   onOpenSettings,
+  onOpenProfile,
 }: HeaderProps) {
   const todayFormatted = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -32,16 +38,22 @@ export function Header({
       {/* Top Bar */}
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+          <button
+            onClick={onOpenProfile}
+            title="Edit business & cleaner profile"
+            className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 active:scale-95 transition-transform"
+          >
             <Sparkles className="w-5 h-5" />
-          </div>
+          </button>
           <div>
-            <h1 className="font-bold text-lg text-slate-900 leading-tight flex items-center gap-1.5">
-              ClearView
-              <span className="text-[10px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700">
+            <div className="flex items-center gap-1.5">
+              <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight truncate max-w-[170px] sm:max-w-[220px]">
+                {businessName}
+              </h1>
+              <span className="text-[10px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 shrink-0">
                 PRO
               </span>
-            </h1>
+            </div>
             <p className="text-xs text-slate-500 font-medium">{todayFormatted}</p>
           </div>
         </div>
@@ -57,19 +69,27 @@ export function Header({
           </button>
           
           <button
-            onClick={onOpenSettings}
-            title="Settings & Google Sheet Setup"
+            onClick={onOpenProfile}
+            title="Cleaner Profile & Sheet Setup"
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors active:scale-95 relative"
           >
-            <Settings className="w-4 h-4" />
-            {isDemoMode && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white" />
+            <UserCheck className="w-4 h-4 text-brand-600" />
+            {hasCustomSheet && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white" />
             )}
           </button>
 
           <button
+            onClick={onOpenSettings}
+            title="Settings & Guide"
+            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors active:scale-95"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={onOpenAddCustomer}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm px-3 py-2 rounded-xl shadow-sm shadow-brand-600/20 active:scale-95 transition-all"
+            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm px-3 py-2 rounded-xl shadow-sm shadow-brand-600/20 active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Add</span>
@@ -84,17 +104,20 @@ export function Header({
           <span className="text-slate-500">Database:</span>
           {isDemoMode ? (
             <button
-              onClick={onOpenSettings}
+              onClick={onOpenProfile}
               className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 font-medium underline underline-offset-2"
             >
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              Demo Mode (Tap to connect Sheet)
+              Demo Mode (Connect your Sheet)
             </button>
           ) : (
-            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+            <button
+              onClick={onOpenProfile}
+              className="inline-flex items-center gap-1 text-emerald-700 font-medium hover:underline"
+            >
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Google Sheet Connected
-            </span>
+              {hasCustomSheet ? 'Your Personal Sheet Connected' : 'Google Sheet Connected'}
+            </button>
           )}
         </div>
 

@@ -3,24 +3,29 @@ import { Customer, FrequencyWeeks, SheetConnectionInfo } from './types';
 import { getInitialDemoCustomers } from './demoData';
 import { getTodayDateString, addWeeksToDate } from './dateUtils';
 
-// In-memory cache for demo mode so changes (marking complete, adding, editing) persist during runtime
+// In-memory cache for demo mode so changes persist during runtime
 let demoCustomersCache: Customer[] = getInitialDemoCustomers();
 
-export function isGoogleSheetsConfigured(): boolean {
+export function getServiceAccountEmail(): string {
+  return process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+}
+
+export function isGoogleSheetsConfigured(customSheetId?: string): boolean {
+  const targetId = customSheetId || process.env.GOOGLE_SHEET_ID;
   return Boolean(
-    process.env.GOOGLE_SHEET_ID &&
+    targetId &&
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
     process.env.GOOGLE_PRIVATE_KEY
   );
 }
 
-function getGoogleSheetsClient() {
-  const sheetId = process.env.GOOGLE_SHEET_ID;
+function getGoogleSheetsClient(customSheetId?: string) {
+  const sheetId = customSheetId || process.env.GOOGLE_SHEET_ID;
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
 
   if (!sheetId || !clientEmail || !privateKey) {
-    throw new Error('Google Sheets credentials are not configured.');
+    throw new Error('Google Sheets service credentials are not configured on the server.');
   }
 
   // Handle newlines in private key
@@ -78,13 +83,13 @@ async function ensureHeaders(sheets: any, sheetId: string) {
 /**
  * Fetch all customers (From Google Sheets or Demo fallback)
  */
-export async function getCustomers(): Promise<{ customers: Customer[]; isDemoMode: boolean }> {
-  if (!isGoogleSheetsConfigured()) {
+export async function getCustomers(customSheetId?: string): Promise<{ customers: Customer[]; isDemoMode: boolean }> {
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     return { customers: demoCustomersCache, isDemoMode: true };
   }
 
   try {
-    const { sheets, sheetId } = getGoogleSheetsClient();
+    const { sheets, sheetId } = getGoogleSheetsClient(customSheetId);
     await ensureHeaders(sheets, sheetId);
 
     const response = await sheets.spreadsheets.values.get({
@@ -140,20 +145,20 @@ export async function getCustomers(): Promise<{ customers: Customer[]; isDemoMod
 /**
  * Add a new customer
  */
-export async function addCustomer(customer: Omit<Customer, 'id'>): Promise<{ success: boolean; customer: Customer; isDemoMode: boolean }> {
+export async function addCustomer(customer: Omit<Customer, 'id'>, customSheetId?: string): Promise<{ success: boolean; customer: Customer; isDemoMode: boolean }> {
   const newId = `cust-${Date.now()}`;
   const fullCustomer: Customer = {
     ...customer,
     id: newId,
   };
 
-  if (!isGoogleSheetsConfigured()) {
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     demoCustomersCache.unshift(fullCustomer);
     return { success: true, customer: fullCustomer, isDemoMode: true };
   }
 
   try {
-    const { sheets, sheetId } = getGoogleSheetsClient();
+    const { sheets, sheetId } = getGoogleSheetsClient(customSheetId);
     const rowValues = [
       fullCustomer.id,
       fullCustomer.name,
@@ -188,8 +193,8 @@ export async function addCustomer(customer: Omit<Customer, 'id'>): Promise<{ suc
 /**
  * Update an existing customer
  */
-export async function updateCustomer(id: string, updates: Partial<Customer>): Promise<{ success: boolean; customer?: Customer; isDemoMode: boolean }> {
-  if (!isGoogleSheetsConfigured()) {
+export async function updateCustomer(id: string, updates: Partial<Customer>, customSheetId?: string): Promise<{ success: boolean; customer?: Customer; isDemoMode: boolean }> {
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     const idx = demoCustomersCache.findIndex((c) => c.id === id);
     if (idx === -1) {
       return { success: false, isDemoMode: true };
@@ -199,7 +204,7 @@ export async function updateCustomer(id: string, updates: Partial<Customer>): Pr
   }
 
   try {
-    const { sheets, sheetId } = getGoogleSheetsClient();
+    const { sheets, sheetId } = getGoogleSheetsClient(customSheetId);
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: SHEET_RANGE,
@@ -282,18 +287,18 @@ export async function updateCustomer(id: string, updates: Partial<Customer>): Pr
  * Updates lastCleanedDate = today
  * Updates nextDueDate = today + frequencyWeeks
  */
-export async function markCustomerCompleted(id: string): Promise<{ success: boolean; customer?: Customer; isDemoMode: boolean }> {
+export async function markCustomerCompleted(id: string, customSheetId?: string): Promise<{ success: boolean; customer?: Customer; isDemoMode: boolean }> {
   const today = getTodayDateString();
 
   // Find customer to get their frequency
   let frequency: FrequencyWeeks = 4;
-  if (!isGoogleSheetsConfigured()) {
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     const current = demoCustomersCache.find((c) => c.id === id);
     if (current) {
       frequency = current.frequencyWeeks;
     }
   } else {
-    const all = await getCustomers();
+    const all = await getCustomers(customSheetId);
     const found = all.customers.find((c) => c.id === id);
     if (found) {
       frequency = found.frequencyWeeks;
@@ -305,20 +310,20 @@ export async function markCustomerCompleted(id: string): Promise<{ success: bool
   return updateCustomer(id, {
     lastCleanedDate: today,
     nextDueDate: nextDueDate,
-  });
+  }, customSheetId);
 }
 
 /**
  * Delete a customer
  */
-export async function deleteCustomer(id: string): Promise<{ success: boolean; isDemoMode: boolean }> {
-  if (!isGoogleSheetsConfigured()) {
+export async function deleteCustomer(id: string, customSheetId?: string): Promise<{ success: boolean; isDemoMode: boolean }> {
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     demoCustomersCache = demoCustomersCache.filter((c) => c.id !== id);
     return { success: true, isDemoMode: true };
   }
 
   try {
-    const { sheets, sheetId } = getGoogleSheetsClient();
+    const { sheets, sheetId } = getGoogleSheetsClient(customSheetId);
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: SHEET_RANGE,
@@ -361,22 +366,27 @@ export function resetDemoData(): void {
 }
 
 /**
- * Test Google Sheets connection
+ * Test Google Sheets connection for a specific sheet ID
  */
-export async function testConnection(): Promise<SheetConnectionInfo> {
-  if (!isGoogleSheetsConfigured()) {
+export async function testConnection(customSheetId?: string): Promise<SheetConnectionInfo> {
+  const targetId = customSheetId || process.env.GOOGLE_SHEET_ID;
+
+  if (!isGoogleSheetsConfigured(customSheetId)) {
     return {
       isConnected: false,
       isDemoMode: true,
+      serviceAccount: getServiceAccountEmail(),
       rowCount: demoCustomersCache.length,
     };
   }
 
   try {
-    const { sheets, sheetId } = getGoogleSheetsClient();
+    const { sheets, sheetId } = getGoogleSheetsClient(customSheetId);
     const meta = await sheets.spreadsheets.get({
       spreadsheetId: sheetId,
     });
+
+    await ensureHeaders(sheets, sheetId);
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
@@ -395,6 +405,8 @@ export async function testConnection(): Promise<SheetConnectionInfo> {
   } catch (err: any) {
     return {
       isConnected: false,
+      sheetId: targetId,
+      serviceAccount: getServiceAccountEmail(),
       isDemoMode: false,
       error: err.message,
     };

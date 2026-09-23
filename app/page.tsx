@@ -10,9 +10,11 @@ import {
   Users, 
   Clock, 
   Plus,
-  RefreshCw
+  RefreshCw,
+  Building2,
+  Database
 } from 'lucide-react';
-import { Customer, AppStats } from '@/lib/types';
+import { Customer, AppStats, UserProfile } from '@/lib/types';
 import { getTodayDateString, getDaysDifference, getCustomerDueCategory } from '@/lib/dateUtils';
 import { Header } from '@/components/Header';
 import { FilterBar, TabType } from '@/components/FilterBar';
@@ -21,6 +23,14 @@ import { OnMyWayModal } from '@/components/OnMyWayModal';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { EditCustomerModal } from '@/components/EditCustomerModal';
 import { SettingsModal } from '@/components/SettingsModal';
+import { ProfileModal } from '@/components/ProfileModal';
+
+const DEFAULT_PROFILE: UserProfile = {
+  id: 'default-cleaner',
+  businessName: 'ClearView',
+  cleanerName: '',
+  createdAt: new Date().toISOString(),
+};
 
 export default function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -29,18 +39,44 @@ export default function HomePage() {
   const [currentTab, setCurrentTab] = useState<TabType>('today');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // User Profile / Multi-Tenant State
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
+
   // Modals state
   const [onMyWayCustomer, setOnMyWayCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
-  // Fetch customers from API
-  const fetchCustomers = useCallback(async () => {
-    setIsLoading(true);
+  // Load profile from localStorage on client mount
+  useEffect(() => {
     try {
-      const res = await fetch('/api/customers');
+      const stored = localStorage.getItem('clearview_user_profile');
+      if (stored) {
+        setProfile(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn('Could not read user profile from localStorage:', e);
+    } finally {
+      setIsProfileLoaded(true);
+    }
+  }, []);
+
+  // Fetch customers from API (using customSheetId if configured)
+  const fetchCustomers = useCallback(async (targetSheetId?: string) => {
+    setIsLoading(true);
+    const activeSheetId = targetSheetId !== undefined ? targetSheetId : profile.sheetId;
+
+    try {
+      const headers: Record<string, string> = {};
+      if (activeSheetId) {
+        headers['x-sheet-id'] = activeSheetId;
+      }
+
+      const res = await fetch('/api/customers', { headers });
       const data = await res.json();
       if (data.customers) {
         setCustomers(data.customers);
@@ -51,11 +87,23 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [profile.sheetId]);
 
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    if (isProfileLoaded) {
+      fetchCustomers();
+    }
+  }, [isProfileLoaded, fetchCustomers]);
+
+  const handleSaveProfile = (newProfile: UserProfile) => {
+    setProfile(newProfile);
+    try {
+      localStorage.setItem('clearview_user_profile', JSON.stringify(newProfile));
+    } catch (e) {
+      console.warn('Could not save user profile:', e);
+    }
+    fetchCustomers(newProfile.sheetId);
+  };
 
   const todayStr = getTodayDateString();
 
@@ -65,7 +113,6 @@ export default function HomePage() {
 
     // Optimistic UI update
     const previousCustomers = [...customers];
-    const isAlreadyDoneToday = customer.lastCleanedDate === todayStr;
 
     try {
       // Trigger pleasant celebratory confetti
@@ -76,9 +123,16 @@ export default function HomePage() {
         colors: ['#0284c7', '#38bdf8', '#10b981', '#34d399', '#f59e0b'],
       });
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (profile.sheetId) {
+        headers['x-sheet-id'] = profile.sheetId;
+      }
+
       const res = await fetch(`/api/customers/${customer.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ action: 'complete' }),
       });
 
@@ -96,6 +150,34 @@ export default function HomePage() {
       setCustomers(previousCustomers);
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  // Bulk import customers from CSV
+  const handleImportCustomers = async (newCustomers: Omit<Customer, 'id'>[]) => {
+    setIsLoading(true);
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (profile.sheetId) {
+        headers['x-sheet-id'] = profile.sheetId;
+      }
+
+      for (const cust of newCustomers) {
+        await fetch('/api/customers', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(cust),
+        });
+      }
+      await fetchCustomers();
+      alert(`Successfully imported ${newCustomers.length} customers!`);
+    } catch (err) {
+      console.error('Error importing customers:', err);
+      alert('Some customers could not be imported.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -164,7 +246,6 @@ export default function HomePage() {
       // Shows Overdue + Due Today first! (Active customers)
       filtered = filtered.filter((c) => {
         if (c.status === 'paused') return false;
-        // Don't hide if completed today, but put at bottom
         const diff = getDaysDifference(c.nextDueDate, todayStr);
         return diff <= 0 || c.lastCleanedDate === todayStr;
       });
@@ -179,7 +260,6 @@ export default function HomePage() {
         return a.nextDueDate.localeCompare(b.nextDueDate);
       });
     } else if (currentTab === 'week') {
-      // Cleans due within next 7 days
       filtered = filtered.filter((c) => {
         if (c.status === 'paused') return false;
         const diff = getDaysDifference(c.nextDueDate, todayStr);
@@ -190,7 +270,6 @@ export default function HomePage() {
     } else if (currentTab === 'completed') {
       filtered = filtered.filter((c) => c.lastCleanedDate === todayStr);
     } else {
-      // 'all' tab: Sort by next due date, paused customers at end
       filtered.sort((a, b) => {
         if (a.status === 'paused' && b.status !== 'paused') return 1;
         if (a.status !== 'paused' && b.status === 'paused') return -1;
@@ -217,11 +296,14 @@ export default function HomePage() {
       {/* Header with Stats & Actions */}
       <Header
         stats={stats}
+        businessName={profile.businessName}
         isDemoMode={isDemoMode}
         isLoading={isLoading}
-        onRefresh={fetchCustomers}
+        hasCustomSheet={Boolean(profile.sheetId)}
+        onRefresh={() => fetchCustomers()}
         onOpenAddCustomer={() => setIsAddModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
       />
 
       {/* Filter Tabs & Search Bar */}
@@ -269,13 +351,22 @@ export default function HomePage() {
               </button>
             )}
             {customers.length === 0 && (
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="mt-2 inline-flex items-center gap-1.5 bg-brand-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add First Customer</span>
-              </button>
+              <div className="pt-2 flex justify-center gap-2">
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 bg-brand-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add First Customer</span>
+                </button>
+                <button
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-200"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Connect Sheet / Import</span>
+                </button>
+              </div>
             )}
           </div>
         ) : (
@@ -312,20 +403,29 @@ export default function HomePage() {
       <AddCustomerModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onCustomerAdded={fetchCustomers}
+        onCustomerAdded={() => fetchCustomers()}
       />
 
       <EditCustomerModal
         customer={editingCustomer}
         onClose={() => setEditingCustomer(null)}
-        onCustomerUpdated={fetchCustomers}
+        onCustomerUpdated={() => fetchCustomers()}
+      />
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        profile={profile}
+        onSaveProfile={handleSaveProfile}
+        customers={customers}
+        onImportCustomers={handleImportCustomers}
       />
 
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         isDemoMode={isDemoMode}
-        onDataReset={fetchCustomers}
+        onDataReset={() => fetchCustomers()}
       />
     </div>
   );
