@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Use a fresh build directory to bypass any stale SMB file locks on .next
-  distDir: '.next_build',
+  // On Vercel, use standard '.next' output directory. Locally, bypass SMB file locks.
+  distDir: process.env.VERCEL ? '.next' : '.next_build',
   typescript: {
     ignoreBuildErrors: true,
   },
