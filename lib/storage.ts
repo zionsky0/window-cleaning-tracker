@@ -1,8 +1,7 @@
 import { Customer } from './types';
-import { getInitialDemoCustomers } from './demoData';
 
-const STORAGE_KEY_CUSTOMERS = 'clearview_customers_v1';
-const STORAGE_KEY_USER = 'clearview_user_v1';
+const STORAGE_KEY_CUSTOMERS = 'clearview_rounds_v2';
+const STORAGE_KEY_USER = 'clearview_user_v2';
 
 export interface CleanerUser {
   identifier: string; // phone or email
@@ -15,6 +14,11 @@ export interface CleanerUser {
 export function getLocalCustomers(): Customer[] {
   if (typeof window === 'undefined') return [];
   try {
+    // Clear any legacy demo data from earlier versions
+    if (localStorage.getItem('clearview_customers_v1')) {
+      localStorage.removeItem('clearview_customers_v1');
+    }
+
     const data = localStorage.getItem(STORAGE_KEY_CUSTOMERS);
     if (data) {
       return JSON.parse(data);
@@ -23,10 +27,8 @@ export function getLocalCustomers(): Customer[] {
     console.error('Error reading local customers:', err);
   }
 
-  // First time opening the app: seed with realistic starter data
-  const initial = getInitialDemoCustomers();
-  setLocalCustomers(initial);
-  return initial;
+  // All new users start with a clean, blank slate
+  return [];
 }
 
 export function setLocalCustomers(customers: Customer[]): void {

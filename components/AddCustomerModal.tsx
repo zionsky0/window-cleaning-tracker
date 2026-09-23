@@ -21,7 +21,7 @@ export function AddCustomerModal({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [price, setPrice] = useState('25');
+  const [price, setPrice] = useState('');
   const [frequencyWeeks, setFrequencyWeeks] = useState<FrequencyWeeks>(4);
   const [nextDueDate, setNextDueDate] = useState(getTodayDateString());
   const [notes, setNotes] = useState('');

@@ -4,7 +4,7 @@ import { getInitialDemoCustomers } from './demoData';
 import { getTodayDateString, addWeeksToDate } from './dateUtils';
 
 // In-memory demo cache for unauthenticated users
-let demoCustomersCache: Customer[] = getInitialDemoCustomers();
+let demoCustomersCache: Customer[] = [];
 
 const SHEET_NAME = 'ClearView - My Window Cleaning Rounds';
 const TAB_NAME = 'Customers';
