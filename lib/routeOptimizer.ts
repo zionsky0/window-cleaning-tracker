@@ -213,7 +213,7 @@ export async function geocodeCustomers(
     }
   }
 
-  // Geocode finish location via Nominatim if needed (e.g. Cottage Hospital Court)
+  // Geocode finish location via Nominatim if needed
   if (resolvedFinish?.address && (!resolvedFinish.lat || !resolvedFinish.lng) && nominatimLookups < 5) {
     try {
       nominatimLookups++;

@@ -34,7 +34,6 @@ import {
   setLocalFinishLocation,
   getLocalTravelMode,
   setLocalTravelMode,
-  DEFAULT_FINISH_LOCATION,
 } from '@/lib/storage';
 
 type RouteScope = 'today' | 'week' | 'all';
@@ -82,10 +81,10 @@ export function RouteMapModal({
   const [startAddress, setStartAddress] = useState('');
   const [startCoords, setStartCoords] = useState<GeoLocation | undefined>(undefined);
 
-  // Finish Location state (Cottage Hospital Court, Runcorn default)
-  const [finishAddress, setFinishAddress] = useState(DEFAULT_FINISH_LOCATION.address);
-  const [finishCoords, setFinishCoords] = useState<GeoLocation | undefined>(DEFAULT_FINISH_LOCATION);
-  const [finishAtHome, setFinishAtHome] = useState(true);
+  // Finish Location state (user customizable)
+  const [finishAddress, setFinishAddress] = useState('');
+  const [finishCoords, setFinishCoords] = useState<GeoLocation | undefined>(undefined);
+  const [finishAtHome, setFinishAtHome] = useState(false);
 
   const [selectedNavApp, setSelectedNavApp] = useState<NavApp>('google');
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
@@ -119,11 +118,16 @@ export function RouteMapModal({
     }
 
     const savedFinish = getLocalFinishLocation();
-    if (savedFinish) {
+    if (savedFinish && savedFinish.address && savedFinish.address.trim()) {
       setFinishAddress(savedFinish.address);
+      setFinishAtHome(true);
       if (savedFinish.lat && savedFinish.lng) {
         setFinishCoords({ lat: savedFinish.lat, lng: savedFinish.lng, address: savedFinish.address });
       }
+    } else {
+      setFinishAddress('');
+      setFinishCoords(undefined);
+      setFinishAtHome(false);
     }
 
     setTravelMode(getLocalTravelMode());
@@ -243,6 +247,55 @@ export function RouteMapModal({
     const loc = { address: val };
     setLocalStartLocation(loc);
     setStartCoords({ address: val });
+  };
+
+  // Handle GPS Home/Finish location
+  const handleUseGpsAsHome = () => {
+    if (!navigator.geolocation) {
+      setStatusNotice('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords: GeoLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          address: 'My Home (GPS)',
+        };
+        setFinishCoords(coords);
+        setFinishAddress('My Home (GPS)');
+        setFinishAtHome(true);
+        setLocalFinishLocation(coords);
+        runOptimization(activeCustomers, undefined, travelMode, coords);
+      },
+      () => {
+        setIsLoading(false);
+        setStatusNotice('Could not retrieve GPS location. You can type a postcode instead.');
+      },
+      { timeout: 7000, enableHighAccuracy: true }
+    );
+  };
+
+  // Save manual finish/home address
+  const handleSaveFinishAddress = (val: string) => {
+    setFinishAddress(val);
+    const loc = val.trim() ? { address: val.trim() } : null;
+    setLocalFinishLocation(loc);
+    setFinishCoords(loc || undefined);
+    if (!val.trim()) {
+      setFinishAtHome(false);
+    }
+  };
+
+  // Clear home/finish location
+  const handleClearFinishAddress = () => {
+    setFinishAddress('');
+    setFinishCoords(undefined);
+    setFinishAtHome(false);
+    setLocalFinishLocation(null);
+    runOptimization(activeCustomers, undefined, travelMode, null);
   };
 
   // Move Stop Up / Down manually
@@ -684,31 +737,42 @@ export function RouteMapModal({
             </div>
           </div>
 
-          {/* 4. Finish / Home Location Bar (Ends Nearest Cottage Hospital Court) */}
+          {/* 4. Finish / Home Location Bar (User Configurable) */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <span className="text-sm">🏁</span>
                 Finish Near Home (Doorstep)
               </span>
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-brand-600 select-none">
-                <input
-                  type="checkbox"
-                  checked={finishAtHome}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setFinishAtHome(checked);
-                    runOptimization(
-                      activeCustomers,
-                      undefined,
-                      travelMode,
-                      checked ? finishCoords || { address: finishAddress } : null
-                    );
-                  }}
-                  className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer accent-brand-600"
-                />
-                <span>{finishAtHome ? 'Active' : 'Off'}</span>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleUseGpsAsHome}
+                  className="text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1 cursor-pointer"
+                  title="Set current GPS position as your home base"
+                >
+                  <Navigation className="w-3 h-3" />
+                  <span>Use GPS</span>
+                </button>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-brand-600 select-none">
+                  <input
+                    type="checkbox"
+                    checked={finishAtHome}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFinishAtHome(checked);
+                      runOptimization(
+                        activeCustomers,
+                        undefined,
+                        travelMode,
+                        checked && finishAddress.trim() ? finishCoords || { address: finishAddress.trim() } : null
+                      );
+                    }}
+                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer accent-brand-600"
+                  />
+                  <span>{finishAtHome ? 'Active' : 'Off'}</span>
+                </label>
+              </div>
             </div>
 
             {finishAtHome && (
@@ -717,40 +781,60 @@ export function RouteMapModal({
                   <input
                     type="text"
                     value={finishAddress}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setFinishAddress(val);
-                      const loc = { address: val };
-                      setLocalFinishLocation(loc);
-                      setFinishCoords(loc);
-                    }}
+                    onChange={(e) => handleSaveFinishAddress(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        runOptimization(activeCustomers);
+                        runOptimization(
+                          activeCustomers,
+                          undefined,
+                          travelMode,
+                          finishAddress.trim() ? { address: finishAddress.trim() } : null
+                        );
                       }
                     }}
-                    placeholder="Cottage Hospital Court, Runcorn, WA7 4AA"
+                    placeholder="Enter your Home or Base Postcode (e.g. WA7 4AA)"
                     className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  {finishAddress !== DEFAULT_FINISH_LOCATION.address && (
+                  {finishAddress.trim() && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setFinishAddress(DEFAULT_FINISH_LOCATION.address);
-                        setFinishCoords(DEFAULT_FINISH_LOCATION);
-                        setLocalFinishLocation(DEFAULT_FINISH_LOCATION);
-                        runOptimization(activeCustomers, undefined, travelMode, DEFAULT_FINISH_LOCATION);
-                      }}
-                      className="px-2.5 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer"
-                      title="Reset to Cottage Hospital Court"
+                      onClick={() =>
+                        runOptimization(
+                          activeCustomers,
+                          undefined,
+                          travelMode,
+                          finishAddress.trim() ? { address: finishAddress.trim() } : null
+                        )
+                      }
+                      disabled={isLoading}
+                      className="px-3 py-1 text-xs bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold cursor-pointer transition-colors"
+                      title="Save and set this address as your home finish point"
                     >
-                      Reset Home
+                      Set
+                    </button>
+                  )}
+                  {finishAddress.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleClearFinishAddress}
+                      className="px-2.5 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer"
+                      title="Clear home address"
+                    >
+                      Clear
                     </button>
                   )}
                 </div>
                 <p className="text-[10px] text-slate-500 leading-tight">
-                  Stops are sequenced so the customer closest to <strong className="text-slate-700">Cottage Hospital Court</strong> is visited last, leaving you on your doorstep when finished.
+                  {finishAddress.trim() ? (
+                    <>
+                      Stops are sequenced so the customer closest to <strong className="text-slate-700">{finishAddress}</strong> is visited last, leaving you on your doorstep when finished.
+                    </>
+                  ) : (
+                    <>
+                      Type your home address or postcode above (or tap <strong className="text-slate-700">Use GPS</strong>) so your route finishes right on your doorstep.
+                    </>
+                  )}
                 </p>
               </div>
             )}

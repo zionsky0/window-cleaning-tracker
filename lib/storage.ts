@@ -8,12 +8,6 @@ const STORAGE_KEY_FINISH_LOCATION = 'clearview_finish_loc_v1';
 const STORAGE_KEY_TRAVEL_MODE = 'clearview_travel_mode_v1';
 const STORAGE_KEY_NAV_APP = 'clearview_nav_app_v1';
 
-export const DEFAULT_FINISH_LOCATION = {
-  address: 'Cottage Hospital Court, Runcorn, WA7 4AA',
-  lat: 53.33556,
-  lng: -2.74025,
-};
-
 export interface CleanerUser {
   identifier: string; // phone or email
   type: 'phone' | 'email';
@@ -144,8 +138,8 @@ export function setLocalNavApp(app: NavApp): void {
   }
 }
 
-export function getLocalFinishLocation(): { address: string; lat?: number; lng?: number } {
-  if (typeof window === 'undefined') return DEFAULT_FINISH_LOCATION;
+export function getLocalFinishLocation(): { address: string; lat?: number; lng?: number } | null {
+  if (typeof window === 'undefined') return null;
   try {
     const data = localStorage.getItem(STORAGE_KEY_FINISH_LOCATION);
     if (data) {
@@ -157,7 +151,7 @@ export function getLocalFinishLocation(): { address: string; lat?: number; lng?:
   } catch (err) {
     console.error('Error reading finish location:', err);
   }
-  return DEFAULT_FINISH_LOCATION;
+  return null;
 }
 
 export function setLocalFinishLocation(loc: { address: string; lat?: number; lng?: number } | null): void {
