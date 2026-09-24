@@ -214,6 +214,21 @@ export default function HomePage() {
     });
   }, [customers, todayStr]);
 
+  // Customers scheduled for this week
+  const weekCustomers = useMemo(() => {
+    const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
+    const weekSet = new Set(weekDates);
+    return customers.filter((c) => {
+      if (c.status === 'paused') return false;
+      return weekSet.has(c.nextDueDate) || c.lastCleanedDate === todayStr;
+    });
+  }, [customers, todayStr]);
+
+  // All active customers
+  const allActiveCustomers = useMemo(() => {
+    return customers.filter((c) => c.status !== 'paused');
+  }, [customers]);
+
   // Customers currently active in route
   const activeRouteCustomers = useMemo(() => {
     if (!activeRoute?.isActive || activeRoute.stopIds.length === 0) return [];
@@ -396,8 +411,8 @@ export default function HomePage() {
           />
         )}
 
-        {/* Route Planner Launch Bar on 'today' tab when cleans are scheduled */}
-        {currentTab === 'today' && todayDueCustomers.length > 0 && (
+        {/* Route Planner Launch Bar */}
+        {allActiveCustomers.length > 0 && (
           <div className="bg-linear-to-r from-sky-50 to-indigo-50 border border-sky-200/80 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -418,7 +433,9 @@ export default function HomePage() {
                 <p className="text-[11px] text-slate-500 truncate">
                   {activeRoute?.isActive
                     ? 'Shortest road driving order with 1-tap navigation'
-                    : `Optimize driving order for today's ${uncleanedTodayCount} scheduled cleans`}
+                    : todayDueCustomers.length > 0
+                    ? `Optimize driving route for today's ${todayDueCustomers.length} cleans`
+                    : `Plan & map driving route for your ${allActiveCustomers.length} rounds`}
                 </p>
               </div>
             </div>
@@ -426,7 +443,7 @@ export default function HomePage() {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setIsRouteModalOpen(true)}
-                className="px-3 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+                className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
               >
                 <MapPin className="w-3.5 h-3.5" />
                 <span>{activeRoute?.isActive ? 'View Map' : 'Plan Best Route'}</span>
@@ -434,7 +451,7 @@ export default function HomePage() {
               {activeRoute?.isActive && (
                 <button
                   onClick={handleEndRoute}
-                  className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 transition-colors"
+                  className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer"
                   title="Exit Active Route"
                 >
                   <X className="w-4 h-4" />
@@ -529,7 +546,9 @@ export default function HomePage() {
       <RouteMapModal
         isOpen={isRouteModalOpen}
         onClose={() => setIsRouteModalOpen(false)}
-        customers={todayDueCustomers}
+        todayCustomers={todayDueCustomers}
+        weekCustomers={weekCustomers}
+        allCustomers={allActiveCustomers}
         onApplyRouteOrder={(ordered) => {
           handleStartRouteRunner(ordered);
         }}
