@@ -427,7 +427,7 @@ export default function HomePage() {
   const uncleanedTodayCount = todayDueCustomers.filter((c) => c.lastCleanedDate !== todayStr).length;
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-100 min-h-screen">
+    <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-950 min-h-screen transition-colors duration-200">
       <Header
         stats={stats}
         businessName={businessName}
@@ -460,24 +460,24 @@ export default function HomePage() {
 
         {/* Route Planner Launch Bar */}
         {allActiveCustomers.length > 0 && (
-          <div className="bg-linear-to-r from-sky-50 to-indigo-50 border border-sky-200/80 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-xs">
+          <div className="bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-900/80 border border-sky-200/80 dark:border-slate-700/80 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-xs transition-colors duration-200">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                 <Compass className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
+                  <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
                     {activeRoute?.isActive ? 'Active Route Running' : 'Smart Route Planner'}
                   </h4>
                   {activeRoute?.isActive && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                       Stop {activeRoute.currentStopIndex + 1} of {activeRoute.stopIds.length}
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500 truncate">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                   {activeRoute?.isActive
                     ? 'Shortest road driving order with 1-tap navigation'
                     : todayDueCustomers.length > 0
@@ -498,7 +498,7 @@ export default function HomePage() {
               {activeRoute?.isActive && (
                 <button
                   onClick={handleEndRoute}
-                  className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                   title="Exit Active Route"
                 >
                   <X className="w-4 h-4" />
@@ -510,13 +510,13 @@ export default function HomePage() {
 
         {/* Customer Cards List */}
         {filteredCustomers.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 shadow-xs">
-            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3 shadow-xs transition-colors duration-200">
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 mx-auto flex items-center justify-center">
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-800">No customers found</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+              <h3 className="font-bold text-sm text-slate-800 dark:text-white">No customers found</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
                 {searchQuery
                   ? `No matches for "${searchQuery}".`
                   : currentTab === 'today'

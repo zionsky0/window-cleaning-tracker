@@ -652,16 +652,16 @@ export function RouteMapModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200 dark:border-slate-800 transition-colors duration-200">
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-100 text-brand-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center">
               <Compass className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-slate-900">Trade Route Planner</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="font-bold text-base text-slate-900 dark:text-white">Trade Route Planner</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {travelMode === 'walking'
                   ? 'Walking / Footpath route • Finishes nearest home'
                   : 'Shortest driving route • Turn-by-turn order'}
@@ -670,7 +670,7 @@ export function RouteMapModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -679,14 +679,14 @@ export function RouteMapModal({
         {/* Content */}
         <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
           {/* 1. Scope Selector Bar (Today, This Week, All Rounds) */}
-          <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+          <div className="grid grid-cols-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold transition-colors duration-200">
             <button
               type="button"
               onClick={() => handleScopeChange('today')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'today'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               <span>Today ({todayCustomers.length})</span>
@@ -696,8 +696,8 @@ export function RouteMapModal({
               onClick={() => handleScopeChange('week')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'week'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               <span>This Week ({weekCustomers.length})</span>
@@ -707,8 +707,8 @@ export function RouteMapModal({
               onClick={() => handleScopeChange('all')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
               <span>All Rounds ({allCustomers.length})</span>
@@ -716,14 +716,14 @@ export function RouteMapModal({
           </div>
 
           {/* 2. Travel Mode Toggle: Walk on Foot (Default) vs Drive in Van */}
-          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-2.5">
+          <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 transition-colors duration-200">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-xs font-bold text-slate-700">Mode:</span>
-              <span className="text-[11px] text-slate-500 truncate">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Mode:</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                 {travelMode === 'walking' ? '🚶 Footpaths & trolley pace' : '🚗 Van road navigation'}
               </span>
             </div>
-            <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold shrink-0">
+            <div className="flex bg-slate-200/80 dark:bg-slate-700 p-0.5 rounded-xl text-xs font-bold shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -733,8 +733,8 @@ export function RouteMapModal({
                 }}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
                   travelMode === 'walking'
-                    ? 'bg-white text-brand-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <span>🚶 Walk</span>
@@ -748,8 +748,8 @@ export function RouteMapModal({
                 }}
                 className={`px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
                   travelMode === 'driving'
-                    ? 'bg-white text-brand-600 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <span>🚗 Drive</span>
@@ -758,16 +758,16 @@ export function RouteMapModal({
           </div>
 
           {/* 3. Start Location Bar */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 space-y-2 transition-colors duration-200">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-600 flex items-center gap-1">
-                <Home className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <Home className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                 Route Start Location
               </span>
               <button
                 type="button"
                 onClick={handleUseGps}
-                className="text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1 cursor-pointer"
+                className="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Navigation className="w-3 h-3" />
                 <span>Use Current GPS</span>
@@ -786,7 +786,7 @@ export function RouteMapModal({
                   }
                 }}
                 placeholder="Enter Depot or Start Postcode (e.g. WA7 4AA)"
-                className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="flex-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
               />
               <button
                 type="button"
@@ -796,7 +796,7 @@ export function RouteMapModal({
                   runOptimization(activeCustomers, startLoc, travelMode, finishLoc);
                 }}
                 disabled={isLoading || activeCustomers.length === 0}
-                className="px-3 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                className="px-3 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
               >
                 {isLoading ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -809,9 +809,9 @@ export function RouteMapModal({
           </div>
 
           {/* 4. Finish / Home Location Bar (User Configurable) */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 space-y-2 transition-colors duration-200">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <span className="text-sm">🏁</span>
                 Finish Near Home (Doorstep)
               </span>
@@ -819,13 +819,13 @@ export function RouteMapModal({
                 <button
                   type="button"
                   onClick={handleUseGpsAsHome}
-                  className="text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 font-bold flex items-center gap-1 cursor-pointer"
                   title="Set current GPS position as your home base"
                 >
                   <Navigation className="w-3 h-3" />
                   <span>Use GPS</span>
                 </button>
-                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-brand-600 select-none">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-brand-600 dark:text-brand-400 select-none">
                   <input
                     type="checkbox"
                     checked={finishAtHome}
@@ -860,7 +860,7 @@ export function RouteMapModal({
                       }
                     }}
                     placeholder="Enter your Home or Base Postcode (e.g. WA7 4AA)"
-                    className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="flex-1 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
                   />
                   {finishAddress.trim() && (
                     <button
@@ -877,7 +877,7 @@ export function RouteMapModal({
                     <button
                       type="button"
                       onClick={handleClearFinishAddress}
-                      className="px-2.5 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer"
+                      className="px-2.5 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold cursor-pointer transition-colors"
                       title="Clear home address"
                     >
                       Clear
@@ -887,24 +887,24 @@ export function RouteMapModal({
 
                 {/* Doorstep Proximity Metric Banner */}
                 {doorstepDistanceMiles !== undefined && orderedStops.length > 0 ? (
-                  <div className="bg-sky-500/10 border border-sky-300/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-sky-950">
+                  <div className="bg-sky-500/10 dark:bg-sky-950/40 border border-sky-300/80 dark:border-sky-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-sky-950 dark:text-sky-200">
                     <span className="flex items-center gap-1.5 font-bold">
                       <span className="text-sm">🏁</span>
                       <span>Doorstep Finish:</span>
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
                         Stop #{orderedStops.length} ({orderedStops[orderedStops.length - 1]?.customer.name}) is just {doorstepDistanceMiles} mi ({doorstepMinutes} min walk) from your home base!
                       </span>
                     </span>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-slate-500 leading-tight">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
                     {finishAddress.trim() ? (
                       <>
-                        Stops are sequenced so the customer closest to <strong className="text-slate-700">{finishAddress}</strong> is visited last, leaving you on your doorstep when finished.
+                        Stops are sequenced so the customer closest to <strong className="text-slate-700 dark:text-slate-200">{finishAddress}</strong> is visited last, leaving you on your doorstep when finished.
                       </>
                     ) : (
                       <>
-                        Type your home address or postcode above (or tap <strong className="text-slate-700">Use GPS</strong>) so your route finishes right on your doorstep.
+                        Type your home address or postcode above (or tap <strong className="text-slate-700 dark:text-slate-200">Use GPS</strong>) so your route finishes right on your doorstep.
                       </>
                     )}
                   </p>
@@ -914,11 +914,11 @@ export function RouteMapModal({
           </div>
 
           {/* 5. Interactive Leaflet Map Canvas */}
-          <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative h-48 sm:h-56 shadow-inner">
+          <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 relative h-48 sm:h-56 shadow-inner transition-colors duration-200">
             <div ref={mapContainerRef} className="w-full h-full" />
             {isLoading && (
-              <div className="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center gap-2 text-xs font-bold text-slate-700">
-                <RefreshCw className="w-4 h-4 animate-spin text-brand-600" />
+              <div className="absolute inset-0 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xs flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200">
+                <RefreshCw className="w-4 h-4 animate-spin text-brand-600 dark:text-brand-400" />
                 <span>
                   {travelMode === 'walking'
                     ? 'Computing shortest walking route...'
@@ -929,40 +929,40 @@ export function RouteMapModal({
           </div>
 
           {/* 6. Route Summary Metrics Pill */}
-          <div className="grid grid-cols-4 gap-2 bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-center">
+          <div className="grid grid-cols-4 gap-2 bg-sky-50/70 dark:bg-slate-800/80 border border-sky-100 dark:border-slate-700 rounded-xl p-3 text-center transition-colors duration-200">
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">Stops</span>
-              <span className="text-sm sm:text-base font-extrabold text-slate-900">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block uppercase">Stops</span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
                 {orderedStops.length}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block uppercase">
                 {travelMode === 'walking' ? 'Walk' : 'Drive'}
               </span>
-              <span className="text-sm sm:text-base font-extrabold text-brand-600">
+              <span className="text-sm sm:text-base font-extrabold text-brand-600 dark:text-brand-400">
                 {totalMiles} mi
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block uppercase">
                 {travelMode === 'walking' ? 'Est. Walk' : 'Est. Drive'}
               </span>
-              <span className="text-sm sm:text-base font-extrabold text-slate-900">
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
                 {totalMinutes} min
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">Revenue</span>
-              <span className="text-sm sm:text-base font-extrabold text-emerald-600">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold block uppercase">Revenue</span>
+              <span className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
                 £{totalEarnings}
               </span>
             </div>
           </div>
 
           {statusNotice && (
-            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>{statusNotice}</span>
             </div>
           )}
@@ -970,16 +970,16 @@ export function RouteMapModal({
           {/* 7. Turn-by-Turn Stop Order List */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+              <h3 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Turn-by-Turn Stop Order ({orderedStops.length})
               </h3>
-              <span className="text-[11px] text-slate-400">Tap check to mark done</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">Tap check to mark done</span>
             </div>
 
             {orderedStops.length === 0 ? (
-              <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
-                <MapPin className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="text-xs font-semibold text-slate-600">
+              <div className="p-6 text-center bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
+                <MapPin className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                   No cleans found in this view.
                 </p>
                 <div className="flex justify-center gap-2 pt-1">
@@ -987,7 +987,7 @@ export function RouteMapModal({
                     <button
                       type="button"
                       onClick={() => setScope('all')}
-                      className="px-3 py-1.5 bg-brand-600 text-white rounded-xl text-xs font-bold"
+                      className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
                       Route All Rounds ({allCustomers.length})
                     </button>
@@ -1003,12 +1003,12 @@ export function RouteMapModal({
                   return (
                     <div
                       key={stop.customer.id}
-                      className={`bg-white border rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs transition-all ${
+                      className={`border rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs transition-all ${
                         isDone
-                          ? 'border-emerald-300 bg-emerald-50/30'
+                          ? 'border-emerald-300 dark:border-emerald-700/80 bg-emerald-50/30 dark:bg-emerald-950/20'
                           : isLastStop && finishAtHome
-                          ? 'border-sky-300 bg-sky-50/20'
-                          : 'border-slate-200 hover:border-slate-300'
+                          ? 'border-sky-300 dark:border-sky-700/80 bg-sky-50/20 dark:bg-sky-950/20'
+                          : 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -1019,7 +1019,7 @@ export function RouteMapModal({
                           className={`w-6 h-6 rounded-lg shrink-0 flex items-center justify-center transition-all cursor-pointer ${
                             isDone
                               ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'border-2 border-slate-300 hover:border-emerald-500 text-transparent'
+                              : 'border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 text-transparent'
                           }`}
                           title="Check off stop"
                         >
@@ -1034,16 +1034,18 @@ export function RouteMapModal({
                           <div className="flex items-center gap-2">
                             <span
                               className={`font-bold text-xs truncate ${
-                                isDone ? 'line-through text-slate-400' : 'text-slate-900'
+                                isDone
+                                  ? 'line-through text-slate-400 dark:text-slate-500'
+                                  : 'text-slate-900 dark:text-white'
                               }`}
                             >
                               {stop.customer.name}
                             </span>
-                            <span className="font-extrabold text-[11px] text-emerald-700">
+                            <span className="font-extrabold text-[11px] text-emerald-700 dark:text-emerald-400">
                               £{stop.customer.price}
                             </span>
                             {isLastStop && finishAtHome && (
-                              <span className="text-[10px] font-extrabold px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md shrink-0 flex items-center gap-1 border border-sky-200">
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 rounded-md shrink-0 flex items-center gap-1 border border-sky-200 dark:border-sky-800">
                                 <span>🏁</span>
                                 <span>
                                   {doorstepDistanceMiles !== undefined
@@ -1053,14 +1055,14 @@ export function RouteMapModal({
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] text-slate-500 block truncate">
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
                             {stop.customer.address}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] font-medium text-slate-400 hidden sm:inline mr-1">
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 hidden sm:inline mr-1">
                           {stop.distanceFromPrevMiles} mi • {stop.travelMinutesFromPrev || stop.driveMinutesFromPrev || 1}m
                         </span>
 
@@ -1074,7 +1076,7 @@ export function RouteMapModal({
                             );
                             window.open(url, '_blank');
                           }}
-                          className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                           title={travelMode === 'walking' ? 'Walk to this house' : 'Drive to this house'}
                         >
                           <Navigation className="w-3.5 h-3.5" />
@@ -1084,7 +1086,7 @@ export function RouteMapModal({
                         <button
                           onClick={() => handleMoveStop(index, 'up')}
                           disabled={index === 0}
-                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded cursor-pointer"
+                          className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 rounded cursor-pointer transition-colors"
                           title="Move earlier"
                         >
                           <ArrowUp className="w-3.5 h-3.5" />
@@ -1092,7 +1094,7 @@ export function RouteMapModal({
                         <button
                           onClick={() => handleMoveStop(index, 'down')}
                           disabled={index === orderedStops.length - 1}
-                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded cursor-pointer"
+                          className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 rounded cursor-pointer transition-colors"
                           title="Move later"
                         >
                           <ArrowDown className="w-3.5 h-3.5" />
@@ -1107,12 +1109,12 @@ export function RouteMapModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+        <div className="p-3.5 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-2 transition-colors duration-200">
           {/* 1. Start Route Runner */}
           <button
             onClick={handleStartRunner}
             disabled={orderedStops.length === 0}
-            className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 active:scale-98 disabled:bg-slate-300 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 active:scale-98 disabled:bg-slate-300 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4 fill-white" />
             <span>
@@ -1124,9 +1126,9 @@ export function RouteMapModal({
           <button
             onClick={handleOpenGoogleMaps}
             disabled={orderedStops.length === 0}
-            className="py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            className="py-3 px-4 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
-            <Share2 className="w-4 h-4 text-slate-500" />
+            <Share2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>Open {travelMode === 'walking' ? 'Walking' : 'Driving'} Route in Google Maps</span>
           </button>
         </div>

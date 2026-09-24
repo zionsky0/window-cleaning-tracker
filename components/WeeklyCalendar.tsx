@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Calendar, ChevronRight } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { Customer } from '@/lib/types';
-import { getCurrentWeekDates, WeekDayInfo } from '@/lib/dateUtils';
+import { getCurrentWeekDates } from '@/lib/dateUtils';
 
 interface WeeklyCalendarProps {
   customers: Customer[];
@@ -36,24 +36,24 @@ export function WeeklyCalendar({
   const totalWeekEarnings = dayStats.reduce((sum, d) => sum + d.totalEarnings, 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-3">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-xs space-y-3 transition-colors duration-200">
       {/* Header bar of calendar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-sky-100 text-brand-600 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center">
             <Calendar className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h3 className="font-bold text-xs sm:text-sm text-slate-900">Weekly Schedule</h3>
-            <p className="text-[11px] text-slate-500 font-medium">
+            <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">Weekly Schedule</h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               {weekDays[0].dayNumber} {weekDays[0].monthName} – {weekDays[6].dayNumber} {weekDays[6].monthName}
             </p>
           </div>
         </div>
 
         <div className="text-right">
-          <span className="text-xs font-extrabold text-slate-900">£{totalWeekEarnings}</span>
-          <span className="text-[11px] text-slate-500 font-medium block">
+          <span className="text-xs font-extrabold text-slate-900 dark:text-white">£{totalWeekEarnings}</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block">
             {totalWeekJobs} {totalWeekJobs === 1 ? 'job' : 'jobs'} this week
           </span>
         </div>
@@ -77,20 +77,20 @@ export function WeeklyCalendar({
                   onSelectDate(day.dateString);
                 }
               }}
-              className={`flex flex-col items-center py-2 px-1 rounded-xl transition-all relative ${
+              className={`flex flex-col items-center py-2 px-1 rounded-xl transition-all relative cursor-pointer ${
                 isSelected
                   ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 scale-[1.03]'
                   : day.isToday
-                  ? 'bg-sky-50 text-slate-900 border-2 border-brand-500'
+                  ? 'bg-sky-50 dark:bg-slate-800 text-slate-900 dark:text-white border-2 border-brand-500'
                   : hasJobs
-                  ? 'bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200'
-                  : 'bg-transparent hover:bg-slate-50 text-slate-400 border border-transparent'
+                  ? 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60'
+                  : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-400 dark:text-slate-600 border border-transparent'
               }`}
             >
               {/* Day Name */}
               <span
                 className={`text-[10px] uppercase font-bold tracking-tight ${
-                  isSelected ? 'text-white/80' : day.isToday ? 'text-brand-600' : 'text-slate-400'
+                  isSelected ? 'text-white/80' : day.isToday ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
                 {day.dayName}
@@ -99,7 +99,7 @@ export function WeeklyCalendar({
               {/* Day Number */}
               <span
                 className={`text-sm sm:text-base font-extrabold my-0.5 ${
-                  isSelected ? 'text-white' : day.isToday ? 'text-brand-700' : 'text-slate-800'
+                  isSelected ? 'text-white' : day.isToday ? 'text-brand-700 dark:text-brand-300' : 'text-slate-800 dark:text-slate-100'
                 }`}
               >
                 {day.dayNumber}
@@ -112,21 +112,21 @@ export function WeeklyCalendar({
                     className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
                       isSelected
                         ? 'bg-white/20 text-white'
-                        : 'bg-emerald-100 text-emerald-800'
+                        : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
                     }`}
                   >
                     {day.count}
                   </span>
                   <span
                     className={`text-[9px] font-bold mt-0.5 ${
-                      isSelected ? 'text-white/90' : 'text-slate-600'
+                      isSelected ? 'text-white/90' : 'text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     £{day.totalEarnings}
                   </span>
                 </div>
               ) : (
-                <span className="text-[10px] text-slate-300 font-medium mt-1.5">•</span>
+                <span className="text-[10px] text-slate-300 dark:text-slate-700 font-medium mt-1.5">•</span>
               )}
 
               {/* Today marker dot */}
@@ -140,10 +140,10 @@ export function WeeklyCalendar({
 
       {/* Filter state indicator & reset */}
       {selectedDate && (
-        <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-          <span className="text-slate-600 font-medium">
+        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
+          <span className="text-slate-600 dark:text-slate-400 font-medium">
             Showing only jobs on{' '}
-            <strong>
+            <strong className="text-slate-800 dark:text-slate-200">
               {new Date(selectedDate).toLocaleDateString('en-GB', {
                 weekday: 'long',
                 day: 'numeric',
@@ -154,7 +154,7 @@ export function WeeklyCalendar({
           <button
             type="button"
             onClick={() => onSelectDate(null)}
-            className="text-brand-600 hover:text-brand-800 font-bold hover:underline"
+            className="text-brand-600 dark:text-brand-400 hover:text-brand-800 font-bold hover:underline cursor-pointer"
           >
             Show All Week
           </button>
