@@ -13,8 +13,10 @@ import {
   Maximize2,
   Minimize2,
   Compass,
+  Banknote,
+  CreditCard,
 } from 'lucide-react';
-import { Customer, NavApp, TravelMode } from '@/lib/types';
+import { Customer, NavApp, TravelMode, PaymentStatus } from '@/lib/types';
 import { getSingleStopNavUrl } from '@/lib/routeOptimizer';
 
 interface RouteRunnerBarProps {
@@ -23,6 +25,7 @@ interface RouteRunnerBarProps {
   onSelectIndex: (index: number) => void;
   onOpenOnMyWay: (customer: Customer) => void;
   onMarkComplete: (customer: Customer) => void;
+  onUpdatePaymentStatus?: (customer: Customer, status: PaymentStatus) => void;
   onOpenMapModal: () => void;
   onCloseRunner: () => void;
   navApp: NavApp;
@@ -37,6 +40,7 @@ export function RouteRunnerBar({
   onSelectIndex,
   onOpenOnMyWay,
   onMarkComplete,
+  onUpdatePaymentStatus,
   onOpenMapModal,
   onCloseRunner,
   navApp,
@@ -213,6 +217,59 @@ export function RouteRunnerBar({
             </button>
           </div>
         </div>
+
+        {/* Quick Payment Toggles for Active Stop */}
+        {onUpdatePaymentStatus && (
+          <div className="flex items-center justify-between gap-2 px-1 text-xs">
+            <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+              <span>Payment:</span>
+              <span className="text-slate-300 font-bold">
+                {currentCustomer.paymentStatus === 'cash'
+                  ? 'Paid Cash'
+                  : currentCustomer.paymentStatus === 'card'
+                  ? 'Paid Card'
+                  : 'Unpaid'}
+              </span>
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onUpdatePaymentStatus(currentCustomer, 'unpaid')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  currentCustomer.paymentStatus === 'unpaid' || !currentCustomer.paymentStatus
+                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Unpaid
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdatePaymentStatus(currentCustomer, 'cash')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  currentCustomer.paymentStatus === 'cash'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Banknote className="w-3 h-3" />
+                <span>Cash</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdatePaymentStatus(currentCustomer, 'card')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  currentCustomer.paymentStatus === 'card'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <CreditCard className="w-3 h-3" />
+                <span>Card</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Big Action Buttons (Thumb-friendly on mobile) */}
         <div className="grid grid-cols-3 gap-2">

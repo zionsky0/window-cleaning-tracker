@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Users, Plus, RefreshCw, Compass, MapPin, X } from 'lucide-react';
-import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp, TravelMode } from '@/lib/types';
+import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp, TravelMode, PaymentStatus } from '@/lib/types';
 import {
   getTodayDateString,
   getDaysDifference,
@@ -21,7 +21,7 @@ import {
   getLocalNavApp,
 } from '@/lib/storage';
 import { Header } from '@/components/Header';
-import { FilterBar, TabType } from '@/components/FilterBar';
+import { FilterBar, TabType, PaymentFilter } from '@/components/FilterBar';
 import { CustomerCard } from '@/components/CustomerCard';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { RouteRunnerBar } from '@/components/RouteRunnerBar';
@@ -38,6 +38,7 @@ export default function HomePage() {
   const [businessName, setBusinessName] = useState('ClearView');
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentTab, setCurrentTab] = useState<TabType>('today');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [selectedWeekDate, setSelectedWeekDate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -189,6 +190,23 @@ export default function HomePage() {
     updateCustomers(updated);
   };
 
+  // Update customer payment status callback (cash, card, unpaid)
+  const handleUpdatePaymentStatus = useCallback(
+    (customer: Customer, newStatus: PaymentStatus) => {
+      const updated = customers.map((c) =>
+        c.id === customer.id
+          ? {
+              ...c,
+              paymentStatus: newStatus,
+              paymentDate: newStatus !== 'unpaid' ? todayStr : undefined,
+            }
+          : c
+      );
+      updateCustomers(updated);
+    },
+    [customers, todayStr, updateCustomers]
+  );
+
   // Delete customer callback
   const handleDeleteCustomer = (id: string) => {
     const updated = customers.filter((c) => c.id !== id);
@@ -293,12 +311,31 @@ export default function HomePage() {
       todayEstimatedEarnings = 0;
     let completedTodayCount = 0,
       completedTodayEarnings = 0;
+    let unpaidCount = 0,
+      unpaidAmount = 0,
+      cashCount = 0,
+      cashAmount = 0,
+      cardCount = 0,
+      cardAmount = 0;
 
     const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
     const weekSet = new Set(weekDates);
 
     customers.forEach((c) => {
-      if (c.status !== 'paused') totalActiveCount++;
+      if (c.status !== 'paused') {
+        totalActiveCount++;
+        const pStatus = c.paymentStatus || 'unpaid';
+        if (pStatus === 'cash') {
+          cashCount++;
+          cashAmount += c.price;
+        } else if (pStatus === 'card') {
+          cardCount++;
+          cardAmount += c.price;
+        } else {
+          unpaidCount++;
+          unpaidAmount += c.price;
+        }
+      }
 
       if (c.lastCleanedDate === todayStr) {
         completedTodayCount++;
@@ -330,6 +367,12 @@ export default function HomePage() {
       todayEstimatedEarnings,
       completedTodayCount,
       completedTodayEarnings,
+      unpaidCount,
+      unpaidAmount,
+      cashCount,
+      cashAmount,
+      cardCount,
+      cardAmount,
     };
   }, [customers, todayStr]);
 
@@ -396,8 +439,17 @@ export default function HomePage() {
       });
     }
 
+    // Secondary Filter by Payment Status (Unpaid, Cash, Card)
+    if (paymentFilter === 'unpaid') {
+      filtered = filtered.filter((c) => (c.paymentStatus || 'unpaid') === 'unpaid');
+    } else if (paymentFilter === 'cash') {
+      filtered = filtered.filter((c) => c.paymentStatus === 'cash');
+    } else if (paymentFilter === 'card') {
+      filtered = filtered.filter((c) => c.paymentStatus === 'card');
+    }
+
     return filtered;
-  }, [customers, searchQuery, currentTab, selectedWeekDate, activeRoute, todayStr]);
+  }, [customers, searchQuery, currentTab, selectedWeekDate, activeRoute, todayStr, paymentFilter]);
 
   const tabCounts = useMemo(
     () => ({
@@ -446,6 +498,11 @@ export default function HomePage() {
         weekCount={tabCounts.week}
         totalCount={tabCounts.all}
         completedCount={tabCounts.completed}
+        paymentFilter={paymentFilter}
+        onPaymentFilterChange={setPaymentFilter}
+        unpaidCount={stats.unpaidCount}
+        cashCount={stats.cashCount}
+        cardCount={stats.cardCount}
       />
 
       <main className={`flex-1 p-3.5 space-y-3 ${activeRoute?.isActive ? 'pb-44' : 'pb-24'}`}>
@@ -519,6 +576,12 @@ export default function HomePage() {
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
                 {searchQuery
                   ? `No matches for "${searchQuery}".`
+                  : paymentFilter !== 'all'
+                  ? paymentFilter === 'unpaid'
+                    ? 'Great news! No unpaid customers found in this view.'
+                    : paymentFilter === 'cash'
+                    ? 'No cash payments found for this view.'
+                    : 'No card payments found for this view.'
                   : currentTab === 'today'
                   ? 'All caught up! No cleans overdue or due today.'
                   : currentTab === 'week'
@@ -550,6 +613,7 @@ export default function HomePage() {
                 onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
                 onMarkComplete={handleMarkComplete}
                 onEdit={(c) => setEditingCustomer(c)}
+                onUpdatePaymentStatus={handleUpdatePaymentStatus}
                 isCompleting={completingId === customer.id}
                 stopNumber={stopNumber}
               />
@@ -582,6 +646,7 @@ export default function HomePage() {
           }}
           onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
           onMarkComplete={handleMarkComplete}
+          onUpdatePaymentStatus={handleUpdatePaymentStatus}
           onOpenMapModal={() => setIsRouteModalOpen(true)}
           onCloseRunner={handleEndRoute}
           navApp={navApp}

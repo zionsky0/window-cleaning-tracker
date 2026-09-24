@@ -23,6 +23,7 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 31).toISOString().split('T')[0],
       nextDueDate: threeDaysAgo, // Overdue
       status: 'active',
+      paymentStatus: 'unpaid',
       notes: 'Side gate is unlocked. Mind the ginger cat!',
       preferredContact: 'sms',
     },
@@ -36,6 +37,8 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 28).toISOString().split('T')[0],
       nextDueDate: today, // Due Today!
       status: 'active',
+      paymentStatus: 'cash',
+      paymentDate: today,
       notes: 'Text 15 mins before arriving. Keybox code #8291.',
       preferredContact: 'sms',
     },
@@ -49,6 +52,8 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 14).toISOString().split('T')[0],
       nextDueDate: today, // Due Today!
       status: 'active',
+      paymentStatus: 'card',
+      paymentDate: today,
       notes: 'Front bay windows + back patio doors. Dogs put away inside.',
       preferredContact: 'whatsapp',
     },
@@ -62,6 +67,7 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 28).toISOString().split('T')[0],
       nextDueDate: today, // Due Today!
       status: 'active',
+      paymentStatus: 'unpaid',
       notes: 'Includes conservatory glass and frames.',
       preferredContact: 'sms',
     },
@@ -75,6 +81,7 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 27).toISOString().split('T')[0],
       nextDueDate: tomorrow, // Due tomorrow
       status: 'active',
+      paymentStatus: 'unpaid',
       notes: 'Ring front bell, customer works from home.',
       preferredContact: 'sms',
     },
@@ -88,6 +95,7 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 39).toISOString().split('T')[0],
       nextDueDate: inThreeDays,
       status: 'active',
+      paymentStatus: 'cash',
       notes: 'Back gate latch can be stiff, lift handle upwards.',
       preferredContact: 'sms',
     },
@@ -101,6 +109,7 @@ export function getInitialDemoCustomers(): Customer[] {
       lastCleanedDate: new Date(y, m - 1, d - 46).toISOString().split('T')[0],
       nextDueDate: inTenDays,
       status: 'active',
+      paymentStatus: 'card',
       notes: 'Large 3-storey house. Extension pole required for top floor velux.',
       preferredContact: 'whatsapp',
     },

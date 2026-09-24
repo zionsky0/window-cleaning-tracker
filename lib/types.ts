@@ -1,5 +1,7 @@
 export type FrequencyWeeks = 2 | 4 | 6 | 8 | 12;
 
+export type PaymentStatus = 'unpaid' | 'cash' | 'card';
+
 export interface Customer {
   id: string;
   name: string;
@@ -11,6 +13,8 @@ export interface Customer {
   lastCleanedDate?: string; // YYYY-MM-DD
   nextDueDate: string; // YYYY-MM-DD
   status: 'active' | 'paused';
+  paymentStatus?: PaymentStatus; // 'unpaid' | 'cash' | 'card'
+  paymentDate?: string; // YYYY-MM-DD
   notes?: string; // e.g. "Gate code #1234, watch dog"
   preferredContact?: 'sms' | 'whatsapp';
   lat?: number;
@@ -57,6 +61,13 @@ export interface AppStats {
   todayEstimatedEarnings: number;
   completedTodayCount: number;
   completedTodayEarnings: number;
+  // Payment Breakdown
+  unpaidCount: number;
+  unpaidAmount: number;
+  cashCount: number;
+  cashAmount: number;
+  cardCount: number;
+  cardAmount: number;
 }
 
 export interface SheetConnectionInfo {

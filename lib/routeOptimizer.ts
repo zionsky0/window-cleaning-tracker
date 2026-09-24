@@ -675,9 +675,9 @@ export async function optimizeTradeRoute(
     }
 
     const clusters: StreetCluster[] = [];
-    for (const [key, clusterCustomers] of clusterMap.entries()) {
+    clusterMap.forEach((clusterCustomers, key) => {
       // Natural house number sort initially
-      clusterCustomers.sort((a, b) => {
+      clusterCustomers.sort((a: Customer, b: Customer) => {
         const aInfo = parseStreetAndNumber(a.address);
         const bInfo = parseStreetAndNumber(b.address);
         if (aInfo.houseNumber !== null && bInfo.houseNumber !== null) {
@@ -686,13 +686,13 @@ export async function optimizeTradeRoute(
         return (a.address || '').localeCompare(b.address || '');
       });
 
-      const withCoords = clusterCustomers.filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+      const withCoords = clusterCustomers.filter((c: Customer) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
       const hasCoords = withCoords.length > 0;
       const avgLat = hasCoords
-        ? withCoords.reduce((s, c) => s + (c.lat || 0), 0) / withCoords.length
+        ? withCoords.reduce((s: number, c: Customer) => s + (c.lat || 0), 0) / withCoords.length
         : baseLat;
       const avgLng = hasCoords
-        ? withCoords.reduce((s, c) => s + (c.lng || 0), 0) / withCoords.length
+        ? withCoords.reduce((s: number, c: Customer) => s + (c.lng || 0), 0) / withCoords.length
         : baseLng;
 
       clusters.push({
@@ -703,7 +703,7 @@ export async function optimizeTradeRoute(
         centroidLng: avgLng,
         hasCoords,
       });
-    }
+    });
 
     // Step 3: Solve Global Optimal Tour between Street Clusters
     const orderedClusters = solveOptimalTour(clusters, validStart, validFinish);
@@ -874,7 +874,7 @@ export async function optimizeTradeRoute(
     return {
       orderedCustomers: customers,
       routeStops: fallbackStops,
-      totalDistanceMiles: Math.round(fallbackStops.reduce((sum, s) => sum + s.distanceFromPrevMiles, 0) * 10) / 10,
+      totalDistanceMiles: Math.round(fallbackStops.reduce((sum, s) => sum + (s.distanceFromPrevMiles || 0), 0) * 10) / 10,
       totalDurationMinutes: fallbackStops.reduce((sum, s) => sum + (s.travelMinutesFromPrev || 2), 0),
       usedRoadNetwork: false,
       travelMode,

@@ -10,9 +10,11 @@ import {
   Clock, 
   AlertTriangle,
   RotateCcw,
-  Pencil
+  Pencil,
+  Banknote,
+  CreditCard
 } from 'lucide-react';
-import { Customer } from '@/lib/types';
+import { Customer, PaymentStatus } from '@/lib/types';
 import { formatFriendlyDue, formatDateDisplay, getTodayDateString } from '@/lib/dateUtils';
 
 interface CustomerCardProps {
@@ -20,6 +22,7 @@ interface CustomerCardProps {
   onOpenOnMyWay: (customer: Customer) => void;
   onMarkComplete: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
+  onUpdatePaymentStatus: (customer: Customer, status: PaymentStatus) => void;
   isCompleting?: boolean;
   stopNumber?: number;
 }
@@ -29,12 +32,14 @@ export function CustomerCard({
   onOpenOnMyWay,
   onMarkComplete,
   onEdit,
+  onUpdatePaymentStatus,
   isCompleting = false,
   stopNumber,
 }: CustomerCardProps) {
   const todayStr = getTodayDateString();
   const isDoneToday = customer.lastCleanedDate === todayStr;
   const dueInfo = formatFriendlyDue(customer.nextDueDate, todayStr);
+  const paymentStatus: PaymentStatus = customer.paymentStatus || 'unpaid';
 
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     customer.address
@@ -157,6 +162,73 @@ export function CustomerCard({
             <Calendar className="w-3 h-3" />
             Next: {formatDateDisplay(customer.nextDueDate)}
           </span>
+        </div>
+
+        {/* Quick Payment Tracker Section */}
+        <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
+              Payment:
+            </span>
+            {paymentStatus === 'cash' ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                <Banknote className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                Paid Cash (£{customer.price})
+              </span>
+            ) : paymentStatus === 'card' ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shadow-xs">
+                <CreditCard className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                Paid Card (£{customer.price})
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Unpaid (£{customer.price})
+              </span>
+            )}
+          </div>
+
+          {/* Quick 1-tap Payment Mode Switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/90 p-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700/60 shrink-0">
+            <button
+              type="button"
+              onClick={() => onUpdatePaymentStatus(customer, 'unpaid')}
+              title="Mark as Unpaid"
+              className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                paymentStatus === 'unpaid'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Unpaid
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdatePaymentStatus(customer, 'cash')}
+              title="Mark as Paid Cash"
+              className={`px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                paymentStatus === 'cash'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Banknote className="w-3 h-3" />
+              <span>Cash</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onUpdatePaymentStatus(customer, 'card')}
+              title="Mark as Paid by Card"
+              className={`px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                paymentStatus === 'card'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <CreditCard className="w-3 h-3" />
+              <span>Card</span>
+            </button>
+          </div>
         </div>
       </div>
 

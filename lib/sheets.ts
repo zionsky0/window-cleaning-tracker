@@ -8,10 +8,10 @@ let demoCustomersCache: Customer[] = [];
 
 const SHEET_NAME = 'ClearView - My Window Cleaning Rounds';
 const TAB_NAME = 'Customers';
-const SHEET_RANGE = `${TAB_NAME}!A:K`;
+const SHEET_RANGE = `${TAB_NAME}!A:M`;
 const HEADER_ROW = [
   'ID', 'Name', 'Phone', 'Address', 'Price', 'FrequencyWeeks',
-  'LastCleanedDate', 'NextDueDate', 'Status', 'Notes', 'PreferredContact',
+  'LastCleanedDate', 'NextDueDate', 'Status', 'PaymentStatus', 'PaymentDate', 'Notes', 'PreferredContact',
 ];
 
 /**
@@ -130,7 +130,7 @@ export async function getOrCreateUserSheet(accessToken: string): Promise<string>
 // ──────────────────────────────────────────────────
 
 function parseRow(row: any[], index: number): Customer {
-  const [id, name, phone, address, price, frequencyWeeks, lastCleanedDate, nextDueDate, status, notes, preferredContact] = row;
+  const [id, name, phone, address, price, frequencyWeeks, lastCleanedDate, nextDueDate, status, paymentStatus, paymentDate, notes, preferredContact] = row;
   return {
     id: id || `cust-row-${index + 2}`,
     name: name || 'Unnamed Customer',
@@ -141,6 +141,8 @@ function parseRow(row: any[], index: number): Customer {
     lastCleanedDate: lastCleanedDate || undefined,
     nextDueDate: nextDueDate || getTodayDateString(),
     status: (status === 'paused' ? 'paused' : 'active') as 'active' | 'paused',
+    paymentStatus: (paymentStatus === 'cash' || paymentStatus === 'card') ? paymentStatus : 'unpaid',
+    paymentDate: paymentDate || undefined,
     notes: notes || '',
     preferredContact: preferredContact === 'whatsapp' ? 'whatsapp' : 'sms',
   };
@@ -197,13 +199,14 @@ export async function addCustomer(customer: Omit<Customer, 'id'>, accessToken?: 
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_NAME}!A:K`,
+      range: `${TAB_NAME}!A:M`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
           fullCustomer.id, fullCustomer.name, fullCustomer.phone, fullCustomer.address,
           fullCustomer.price, fullCustomer.frequencyWeeks, fullCustomer.lastCleanedDate || '',
-          fullCustomer.nextDueDate, fullCustomer.status, fullCustomer.notes || '',
+          fullCustomer.nextDueDate, fullCustomer.status, fullCustomer.paymentStatus || 'unpaid',
+          fullCustomer.paymentDate || '', fullCustomer.notes || '',
           fullCustomer.preferredContact || 'sms',
         ]],
       },
@@ -261,13 +264,15 @@ export async function updateCustomer(id: string, updates: Partial<Customer>, acc
       updates.lastCleanedDate !== undefined ? updates.lastCleanedDate : currentRow[6],
       updates.nextDueDate !== undefined ? updates.nextDueDate : currentRow[7],
       updates.status !== undefined ? updates.status : currentRow[8],
-      updates.notes !== undefined ? updates.notes : currentRow[9],
-      updates.preferredContact !== undefined ? updates.preferredContact : currentRow[10],
+      updates.paymentStatus !== undefined ? updates.paymentStatus : (currentRow[9] || 'unpaid'),
+      updates.paymentDate !== undefined ? updates.paymentDate : (currentRow[10] || ''),
+      updates.notes !== undefined ? updates.notes : currentRow[11],
+      updates.preferredContact !== undefined ? updates.preferredContact : currentRow[12],
     ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${TAB_NAME}!A${rowIndex}:K${rowIndex}`,
+      range: `${TAB_NAME}!A${rowIndex}:M${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [updatedRow] },
     });

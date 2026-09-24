@@ -1,4 +1,4 @@
-import { Customer, FrequencyWeeks } from './types';
+import { Customer, FrequencyWeeks, PaymentStatus } from './types';
 
 export function customersToCSV(customers: Customer[]): string {
   const headers = [
@@ -11,6 +11,8 @@ export function customersToCSV(customers: Customer[]): string {
     'Last Cleaned Date',
     'Next Due Date',
     'Status',
+    'Payment Status',
+    'Payment Date',
     'Notes',
     'Preferred Contact',
   ];
@@ -31,6 +33,8 @@ export function customersToCSV(customers: Customer[]): string {
     escapeCSV(c.lastCleanedDate || ''),
     escapeCSV(c.nextDueDate),
     escapeCSV(c.status),
+    escapeCSV(c.paymentStatus || 'unpaid'),
+    escapeCSV(c.paymentDate || ''),
     escapeCSV(c.notes || ''),
     escapeCSV(c.preferredContact || 'sms'),
   ]);
@@ -96,7 +100,9 @@ export function parseCSVToCustomers(csvText: string): Omit<Customer, 'id'>[] {
   const freqIdx = headers.findIndex((h) => h.includes('freq') || h.includes('every') || h.includes('interval') || h.includes('weeks'));
   const lastCleanIdx = headers.findIndex((h) => h.includes('lastclean') || h.includes('lastdate'));
   const nextDueIdx = headers.findIndex((h) => h.includes('nextdue') || h.includes('duedate') || h.includes('due'));
-  const statusIdx = headers.findIndex((h) => h.includes('status'));
+  const statusIdx = headers.findIndex((h) => h.includes('status') && !h.includes('pay'));
+  const payStatusIdx = headers.findIndex((h) => h.includes('pay') || h.includes('paid') || h.includes('method'));
+  const payDateIdx = headers.findIndex((h) => h.includes('paydate') || h.includes('paiddate') || h.includes('datepaid'));
   const notesIdx = headers.findIndex((h) => h.includes('note') || h.includes('comment') || h.includes('info'));
   const contactIdx = headers.findIndex((h) => h.includes('contact') || h.includes('preferred'));
 
@@ -118,6 +124,16 @@ export function parseCSVToCustomers(csvText: string): Omit<Customer, 'id'>[] {
     const lastCleanedDate = lastCleanIdx !== -1 && cols[lastCleanIdx] ? cols[lastCleanIdx] : undefined;
     const nextDueDate = (nextDueIdx !== -1 && cols[nextDueIdx]) ? cols[nextDueIdx] : todayStr;
     const status = statusIdx !== -1 && cols[statusIdx]?.toLowerCase() === 'paused' ? 'paused' : 'active';
+    
+    // Parse payment status
+    let paymentStatus: PaymentStatus = 'unpaid';
+    if (payStatusIdx !== -1 && cols[payStatusIdx]) {
+      const p = cols[payStatusIdx].toLowerCase().trim();
+      if (p.includes('cash')) paymentStatus = 'cash';
+      else if (p.includes('card') || p.includes('bank') || p.includes('transfer')) paymentStatus = 'card';
+    }
+    const paymentDate = (payDateIdx !== -1 && cols[payDateIdx]) ? cols[payDateIdx] : undefined;
+
     const notes = notesIdx !== -1 ? cols[notesIdx] : '';
     const preferredContact = contactIdx !== -1 && cols[contactIdx]?.toLowerCase() === 'whatsapp' ? 'whatsapp' : 'sms';
 
@@ -131,6 +147,8 @@ export function parseCSVToCustomers(csvText: string): Omit<Customer, 'id'>[] {
         lastCleanedDate,
         nextDueDate,
         status,
+        paymentStatus,
+        paymentDate,
         notes: notes.replace(/^["']|["']$/g, ''),
         preferredContact,
       });

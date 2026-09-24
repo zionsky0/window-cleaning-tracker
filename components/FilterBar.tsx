@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Banknote, CreditCard, Clock } from 'lucide-react';
 
 export type TabType = 'today' | 'week' | 'all' | 'completed';
+export type PaymentFilter = 'all' | 'unpaid' | 'cash' | 'card';
 
 interface FilterBarProps {
   currentTab: TabType;
@@ -14,6 +15,11 @@ interface FilterBarProps {
   weekCount: number;
   totalCount: number;
   completedCount: number;
+  paymentFilter: PaymentFilter;
+  onPaymentFilterChange: (filter: PaymentFilter) => void;
+  unpaidCount: number;
+  cashCount: number;
+  cardCount: number;
 }
 
 export function FilterBar({
@@ -25,6 +31,11 @@ export function FilterBar({
   weekCount,
   totalCount,
   completedCount,
+  paymentFilter,
+  onPaymentFilterChange,
+  unpaidCount,
+  cashCount,
+  cardCount,
 }: FilterBarProps) {
   return (
     <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 pt-2 pb-3 space-y-2.5 transition-colors duration-200">
@@ -48,7 +59,7 @@ export function FilterBar({
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl gap-1 transition-colors duration-200">
         <button
           onClick={() => onTabChange('today')}
@@ -117,6 +128,91 @@ export function FilterBar({
             <span>Done ({completedCount})</span>
           </button>
         )}
+      </div>
+
+      {/* Payment Filter Pills Row */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0 mr-0.5">
+          Payment:
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onPaymentFilterChange('all')}
+          className={`px-2.5 py-1 rounded-lg font-bold text-xs shrink-0 transition-all cursor-pointer ${
+            paymentFilter === 'all'
+              ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          All
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPaymentFilterChange('unpaid')}
+          className={`px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+            paymentFilter === 'unpaid'
+              ? 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-400/40'
+              : 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60'
+          }`}
+        >
+          <Clock className="w-3 h-3" />
+          <span>Unpaid</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              paymentFilter === 'unpaid'
+                ? 'bg-amber-600 text-white'
+                : 'bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200'
+            }`}
+          >
+            {unpaidCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPaymentFilterChange('cash')}
+          className={`px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+            paymentFilter === 'cash'
+              ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/40'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+          }`}
+        >
+          <Banknote className="w-3 h-3" />
+          <span>Cash</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              paymentFilter === 'cash'
+                ? 'bg-emerald-700 text-white'
+                : 'bg-emerald-200/80 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-200'
+            }`}
+          >
+            {cashCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPaymentFilterChange('card')}
+          className={`px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+            paymentFilter === 'card'
+              ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400/40'
+              : 'bg-sky-50 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/60 text-sky-800 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60'
+          }`}
+        >
+          <CreditCard className="w-3 h-3" />
+          <span>Card</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              paymentFilter === 'card'
+                ? 'bg-sky-700 text-white'
+                : 'bg-sky-200/80 dark:bg-sky-900/80 text-sky-900 dark:text-sky-200'
+            }`}
+          >
+            {cardCount}
+          </span>
+        </button>
       </div>
     </div>
   );

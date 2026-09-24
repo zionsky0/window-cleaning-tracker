@@ -43,7 +43,7 @@ export function ExportModal({
   const todayStr = getTodayDateString();
 
   const aiPromptText = `I have a list of window cleaning customers from my notes. Please convert them into a CSV table with exactly these columns:
-Name,Phone,Address,Price,FrequencyWeeks,NextDueDate,Notes
+Name,Phone,Address,Price,FrequencyWeeks,NextDueDate,PaymentStatus,Notes
 
 Rules:
 1. Name: Customer full name.
@@ -52,8 +52,9 @@ Rules:
 4. Price: Numbers only (no £ sign). Default to 25 if not specified.
 5. FrequencyWeeks: Cleaning frequency in weeks (must be 2, 4, 6, 8, or 12). Default to 4.
 6. NextDueDate: Date in YYYY-MM-DD format (use ${todayStr} if not specified).
-7. Notes: Gate codes, key locations, or special instructions.
-8. Output ONLY raw CSV text starting with the header line. No markdown formatting, no commentary.
+7. PaymentStatus: Payment status (must be 'unpaid', 'cash', or 'card'). Default to unpaid.
+8. Notes: Gate codes, key locations, or special instructions.
+9. Output ONLY raw CSV text starting with the header line. No markdown formatting, no commentary.
 
 Here are my customer notes:
 [PASTE YOUR NOTEPAD NOTES HERE]`;

@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
       nextDueDate: body.nextDueDate || getTodayDateString(),
       lastCleanedDate: body.lastCleanedDate || undefined,
       status: body.status || 'active',
+      paymentStatus: (body.paymentStatus === 'cash' || body.paymentStatus === 'card') ? body.paymentStatus : 'unpaid',
+      paymentDate: body.paymentDate || undefined,
       notes: body.notes?.trim() || '',
       preferredContact: body.preferredContact === 'whatsapp' ? 'whatsapp' : 'sms',
     };
