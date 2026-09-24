@@ -234,197 +234,237 @@ export async function optimizeTradeRoute(
     };
   }
 
-  // Step 1: Geocode any missing coordinates
-  const { updatedCustomers, startLocResolved } = await geocodeCustomers(customers, startPoint);
+  try {
+    // Step 1: Geocode any missing coordinates
+    const { updatedCustomers, startLocResolved } = await geocodeCustomers(customers, startPoint);
 
-  // Validate start point (must be non-zero)
-  const validStart =
-    startLocResolved?.lat &&
-    startLocResolved?.lng &&
-    Math.abs(startLocResolved.lat) > 0.1 &&
-    Math.abs(startLocResolved.lng) > 0.001
-      ? startLocResolved
-      : undefined;
+    // Validate start point (must be non-zero and finite)
+    const validStart =
+      startLocResolved?.lat &&
+      startLocResolved?.lng &&
+      Number.isFinite(startLocResolved.lat) &&
+      Number.isFinite(startLocResolved.lng) &&
+      Math.abs(startLocResolved.lat) > 0.1
+        ? startLocResolved
+        : undefined;
 
-  // Step 2: Group customers by Street / Postcode Cluster
-  interface StreetCluster {
-    key: string;
-    streetName: string;
-    customers: Customer[];
-    centroidLat: number;
-    centroidLng: number;
-    hasCoords: boolean;
-  }
+    // Find local coordinate anchor (from customers or start depot) to avoid jumping across the country
+    const knownCoords = updatedCustomers.filter(
+      (c) => typeof c.lat === 'number' && typeof c.lng === 'number' && Number.isFinite(c.lat) && Number.isFinite(c.lng)
+    );
+    const baseLat =
+      validStart?.lat ??
+      (knownCoords.length > 0 ? knownCoords[0].lat! : 53.335);
+    const baseLng =
+      validStart?.lng ??
+      (knownCoords.length > 0 ? knownCoords[0].lng! : -2.74);
 
-  const clusterMap = new Map<string, Customer[]>();
-  for (const c of updatedCustomers) {
-    const { streetName, postcode } = parseStreetAndNumber(c.address);
-    // Cluster key combines postcode outward code or street name
-    const clusterKey = postcode || streetName || c.address || c.id;
-    if (!clusterMap.has(clusterKey)) {
-      clusterMap.set(clusterKey, []);
-    }
-    clusterMap.get(clusterKey)!.push(c);
-  }
-
-  // Sort customers within each cluster logically by house number (1, 2, 3...)
-  const clusters: StreetCluster[] = [];
-  for (const [key, clusterCustomers] of clusterMap.entries()) {
-    clusterCustomers.sort((a, b) => {
-      const aInfo = parseStreetAndNumber(a.address);
-      const bInfo = parseStreetAndNumber(b.address);
-      if (aInfo.houseNumber !== null && bInfo.houseNumber !== null) {
-        return aInfo.houseNumber - bInfo.houseNumber;
+    // Ensure all customers have at least an approximate local coordinate so they plot on map
+    for (let i = 0; i < updatedCustomers.length; i++) {
+      if (!updatedCustomers[i].lat || !updatedCustomers[i].lng || !Number.isFinite(updatedCustomers[i].lat)) {
+        updatedCustomers[i] = {
+          ...updatedCustomers[i],
+          lat: baseLat + (i + 1) * 0.0015,
+          lng: baseLng + (i + 1) * 0.0015,
+        };
       }
-      return (a.address || '').localeCompare(b.address || '');
-    });
+    }
 
-    // Compute cluster centroid
-    const withCoords = clusterCustomers.filter((c) => c.lat && c.lng);
-    const hasCoords = withCoords.length > 0;
-    const avgLat = hasCoords
-      ? withCoords.reduce((s, c) => s + (c.lat || 0), 0) / withCoords.length
-      : 51.5;
-    const avgLng = hasCoords
-      ? withCoords.reduce((s, c) => s + (c.lng || 0), 0) / withCoords.length
-      : -0.12;
+    // Step 2: Group customers by Street / Postcode Cluster
+    interface StreetCluster {
+      key: string;
+      streetName: string;
+      customers: Customer[];
+      centroidLat: number;
+      centroidLng: number;
+      hasCoords: boolean;
+    }
 
-    clusters.push({
-      key,
-      streetName: parseStreetAndNumber(clusterCustomers[0]?.address).streetName,
-      customers: clusterCustomers,
-      centroidLat: avgLat,
-      centroidLng: avgLng,
-      hasCoords,
-    });
-  }
+    const clusterMap = new Map<string, Customer[]>();
+    for (const c of updatedCustomers) {
+      const { streetName, postcode } = parseStreetAndNumber(c.address);
+      const clusterKey = postcode || streetName || c.address || c.id;
+      if (!clusterMap.has(clusterKey)) {
+        clusterMap.set(clusterKey, []);
+      }
+      clusterMap.get(clusterKey)!.push(c);
+    }
 
-  // Step 3: Optimize order of Street Clusters
-  let orderedClusters: StreetCluster[] = clusters;
-  let roadGeometry: [number, number][] | undefined;
-  let totalDistanceMiles = 0;
-  let totalDurationMinutes = 0;
-  let usedRoadNetwork = false;
+    // Sort customers within each cluster logically by house number (1, 2, 3...)
+    const clusters: StreetCluster[] = [];
+    for (const [key, clusterCustomers] of clusterMap.entries()) {
+      clusterCustomers.sort((a, b) => {
+        const aInfo = parseStreetAndNumber(a.address);
+        const bInfo = parseStreetAndNumber(b.address);
+        if (aInfo.houseNumber !== null && bInfo.houseNumber !== null) {
+          return aInfo.houseNumber - bInfo.houseNumber;
+        }
+        return (a.address || '').localeCompare(b.address || '');
+      });
 
-  // Only run OSRM if clusters have real coordinates and points are distinct
-  const clustersWithCoords = clusters.filter((cl) => cl.hasCoords);
+      const withCoords = clusterCustomers.filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+      const hasCoords = withCoords.length > 0;
+      const avgLat = hasCoords
+        ? withCoords.reduce((s, c) => s + (c.lat || 0), 0) / withCoords.length
+        : baseLat;
+      const avgLng = hasCoords
+        ? withCoords.reduce((s, c) => s + (c.lng || 0), 0) / withCoords.length
+        : baseLng;
 
-  if (clustersWithCoords.length >= 2 && clusters.length <= 30) {
-    try {
-      const pointsToRoute = [
-        ...(validStart ? [{ lat: validStart.lat, lng: validStart.lng }] : []),
-        ...clusters.map((cl) => ({ lat: cl.centroidLat, lng: cl.centroidLng })),
-      ];
+      clusters.push({
+        key,
+        streetName: parseStreetAndNumber(clusterCustomers[0]?.address).streetName,
+        customers: clusterCustomers,
+        centroidLat: avgLat,
+        centroidLng: avgLng,
+        hasCoords,
+      });
+    }
 
-      const coordsString = pointsToRoute
-        .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
-        .join(';');
+    // Step 3: Optimize order of Street Clusters
+    let orderedClusters: StreetCluster[] = clusters;
+    let routeGeometry: [number, number][] | undefined;
+    let totalDistanceMiles = 0;
+    let totalDurationMinutes = 0;
+    let usedRoadNetwork = false;
 
-      const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${coordsString}?source=first&overview=full&geometries=geojson`;
+    // Only run OSRM if clusters have real coordinates and points are distinct
+    const clustersWithCoords = clusters.filter((cl) => cl.hasCoords);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+    if (clustersWithCoords.length >= 2 && clusters.length <= 30) {
+      try {
+        const pointsToRoute = [
+          ...(validStart ? [{ lat: validStart.lat, lng: validStart.lng }] : []),
+          ...clusters.map((cl) => ({ lat: cl.centroidLat, lng: cl.centroidLng })),
+        ];
 
-      const res = await fetch(osrmUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
+        const coordsString = pointsToRoute
+          .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
+          .join(';');
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.code === 'Ok' && Array.isArray(data.waypoints) && data.trips?.[0]) {
-          const trip = data.trips[0];
-          totalDistanceMiles = Math.round(trip.distance * 0.000621371 * 10) / 10;
-          totalDurationMinutes = Math.round(trip.duration / 60);
+        const osrmUrl = `https://router.project-osrm.org/trip/v1/driving/${coordsString}?source=first&overview=full&geometries=geojson`;
 
-          if (trip.geometry?.coordinates) {
-            roadGeometry = trip.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
-          }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-          const sortedIndices = data.waypoints
-            .map((w: any, originalIndex: number) => ({
-              originalIndex,
-              tripIndex: typeof w.waypoint_index === 'number' ? w.waypoint_index : originalIndex,
-            }))
-            .sort((a: any, b: any) => a.tripIndex - b.tripIndex);
+        const res = await fetch(osrmUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
 
-          const newOrderedClusters: StreetCluster[] = [];
-          for (const item of sortedIndices) {
-            const clusterIndex = validStart ? item.originalIndex - 1 : item.originalIndex;
-            if (clusterIndex >= 0 && clusterIndex < clusters.length) {
-              newOrderedClusters.push(clusters[clusterIndex]);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.code === 'Ok' && Array.isArray(data.waypoints) && data.trips?.[0]) {
+            const trip = data.trips[0];
+            totalDistanceMiles = Math.round(trip.distance * 0.000621371 * 10) / 10;
+            totalDurationMinutes = Math.round(trip.duration / 60);
+
+            if (trip.geometry?.coordinates) {
+              routeGeometry = trip.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+            }
+
+            const sortedIndices = data.waypoints
+              .map((w: any, originalIndex: number) => ({
+                originalIndex,
+                tripIndex: typeof w.waypoint_index === 'number' ? w.waypoint_index : originalIndex,
+              }))
+              .sort((a: any, b: any) => a.tripIndex - b.tripIndex);
+
+            const newOrderedClusters: StreetCluster[] = [];
+            for (const item of sortedIndices) {
+              const clusterIndex = validStart ? item.originalIndex - 1 : item.originalIndex;
+              if (clusterIndex >= 0 && clusterIndex < clusters.length) {
+                newOrderedClusters.push(clusters[clusterIndex]);
+              }
+            }
+
+            if (newOrderedClusters.length === clusters.length) {
+              orderedClusters = newOrderedClusters;
+              usedRoadNetwork = true;
             }
           }
-
-          if (newOrderedClusters.length === clusters.length) {
-            orderedClusters = newOrderedClusters;
-            usedRoadNetwork = true;
-          }
         }
+      } catch (e) {
+        console.warn('OSRM road network routing fallback:', e);
       }
-    } catch (e) {
-      console.warn('OSRM road network routing fallback:', e);
-    }
-  }
-
-  // Step 4: Fallback to 2-Opt TSP if OSRM was not used
-  if (!usedRoadNetwork) {
-    orderedClusters = solveTSP2Opt(clusters, validStart);
-  }
-
-  // Step 5: Flatten clusters into the final ordered customer list
-  const orderedCustomers: Customer[] = [];
-  for (const cluster of orderedClusters) {
-    orderedCustomers.push(...cluster.customers);
-  }
-
-  // Step 6: Build turn-by-turn RouteStop list with leg distances & drive times
-  const routeStops: RouteStop[] = [];
-  let prevLat = validStart?.lat;
-  let prevLng = validStart?.lng;
-  let calculatedMiles = 0;
-
-  for (let i = 0; i < orderedCustomers.length; i++) {
-    const c = orderedCustomers[i];
-    let legMiles = 0;
-
-    if (prevLat !== undefined && prevLng !== undefined && c.lat && c.lng) {
-      legMiles = calculateHaversineMiles(prevLat, prevLng, c.lat, c.lng);
-      legMiles = Math.round(legMiles * 1.3 * 10) / 10;
-    } else {
-      legMiles = i === 0 ? 1.0 : 0.4; // standard fallback
     }
 
-    calculatedMiles += legMiles;
-    const legMinutes = estimateDriveMinutes(legMiles);
+    // Step 4: Fallback to 2-Opt TSP if OSRM was not used
+    if (!usedRoadNetwork) {
+      orderedClusters = solveTSP2Opt(clusters, validStart);
+    }
 
-    routeStops.push({
+    // Step 5: Flatten clusters into the final ordered customer list
+    const orderedCustomers: Customer[] = [];
+    for (const cluster of orderedClusters) {
+      orderedCustomers.push(...cluster.customers);
+    }
+
+    // Step 6: Build turn-by-turn RouteStop list with leg distances & drive times
+    const routeStops: RouteStop[] = [];
+    let prevLat = validStart?.lat;
+    let prevLng = validStart?.lng;
+    let calculatedMiles = 0;
+
+    for (let i = 0; i < orderedCustomers.length; i++) {
+      const c = orderedCustomers[i];
+      let legMiles = 0;
+
+      if (prevLat !== undefined && prevLng !== undefined && c.lat && c.lng) {
+        legMiles = calculateHaversineMiles(prevLat, prevLng, c.lat, c.lng);
+        legMiles = Math.round(legMiles * 1.3 * 10) / 10;
+      } else {
+        legMiles = i === 0 ? 0.8 : 0.4; // standard fallback
+      }
+
+      calculatedMiles += legMiles;
+      const legMinutes = estimateDriveMinutes(legMiles);
+
+      routeStops.push({
+        customer: c,
+        stopIndex: i + 1,
+        distanceFromPrevMiles: legMiles,
+        driveMinutesFromPrev: legMinutes,
+        streetName: parseStreetAndNumber(c.address).streetName,
+      });
+
+      if (c.lat && c.lng) {
+        prevLat = c.lat;
+        prevLng = c.lng;
+      }
+    }
+
+    if (!usedRoadNetwork) {
+      totalDistanceMiles = Math.round(calculatedMiles * 10) / 10;
+      totalDurationMinutes = Math.round(
+        routeStops.reduce((sum, s) => sum + (s.driveMinutesFromPrev || 1), 0)
+      );
+    }
+
+    return {
+      orderedCustomers,
+      routeStops,
+      totalDistanceMiles,
+      totalDurationMinutes,
+      routeGeometry,
+      usedRoadNetwork,
+    };
+  } catch (err) {
+    console.error('Safe fallback inside optimizeTradeRoute:', err);
+    // Absolute guarantee: never leave caller with empty route if customers exist
+    const fallbackStops: RouteStop[] = customers.map((c, i) => ({
       customer: c,
       stopIndex: i + 1,
-      distanceFromPrevMiles: legMiles,
-      driveMinutesFromPrev: legMinutes,
+      distanceFromPrevMiles: i === 0 ? 0.8 : 0.4,
+      driveMinutesFromPrev: i === 0 ? 3 : 2,
       streetName: parseStreetAndNumber(c.address).streetName,
-    });
-
-    if (c.lat && c.lng) {
-      prevLat = c.lat;
-      prevLng = c.lng;
-    }
+    }));
+    return {
+      orderedCustomers: customers,
+      routeStops: fallbackStops,
+      totalDistanceMiles: Math.round(fallbackStops.reduce((sum, s) => sum + s.distanceFromPrevMiles, 0) * 10) / 10,
+      totalDurationMinutes: fallbackStops.reduce((sum, s) => sum + s.driveMinutesFromPrev, 0),
+      usedRoadNetwork: false,
+    };
   }
-
-  if (!usedRoadNetwork) {
-    totalDistanceMiles = Math.round(calculatedMiles * 10) / 10;
-    totalDurationMinutes = Math.round(
-      routeStops.reduce((sum, s) => sum + (s.driveMinutesFromPrev || 1), 0)
-    );
-  }
-
-  return {
-    orderedCustomers,
-    routeStops,
-    totalDistanceMiles,
-    totalDurationMinutes,
-    routeGeometry,
-    usedRoadNetwork,
-  };
 }
 
 /**
