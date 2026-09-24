@@ -19,12 +19,14 @@ export interface Customer {
 }
 
 export type NavApp = 'google' | 'apple' | 'waze';
+export type TravelMode = 'walking' | 'driving';
 
 export interface RouteStop {
   customer: Customer;
   stopIndex: number; // 1-based index (Stop #1, #2...)
   distanceFromPrevMiles?: number;
-  driveMinutesFromPrev?: number;
+  driveMinutesFromPrev?: number; // kept for backwards compatibility
+  travelMinutesFromPrev?: number;
   streetName?: string;
   isDoneToday?: boolean;
 }
@@ -35,9 +37,13 @@ export interface ActiveRouteState {
   currentStopIndex: number; // 0-based index of current active stop
   totalDistanceMiles?: number;
   totalDurationMinutes?: number;
+  travelMode?: TravelMode;
   startAddress?: string;
   startLat?: number;
   startLng?: number;
+  finishAddress?: string;
+  finishLat?: number;
+  finishLng?: number;
   lastOptimizedAt: string;
 }
 

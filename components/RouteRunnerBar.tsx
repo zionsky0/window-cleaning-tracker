@@ -14,7 +14,7 @@ import {
   Minimize2,
   Compass,
 } from 'lucide-react';
-import { Customer, NavApp } from '@/lib/types';
+import { Customer, NavApp, TravelMode } from '@/lib/types';
 import { getSingleStopNavUrl } from '@/lib/routeOptimizer';
 
 interface RouteRunnerBarProps {
@@ -26,6 +26,8 @@ interface RouteRunnerBarProps {
   onOpenMapModal: () => void;
   onCloseRunner: () => void;
   navApp: NavApp;
+  travelMode?: TravelMode;
+  finishAddress?: string;
   isCompleting?: boolean;
 }
 
@@ -38,6 +40,8 @@ export function RouteRunnerBar({
   onOpenMapModal,
   onCloseRunner,
   navApp,
+  travelMode = 'walking',
+  finishAddress,
   isCompleting = false,
 }: RouteRunnerBarProps) {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -48,9 +52,10 @@ export function RouteRunnerBar({
   const totalStops = stops.length;
   const completedStops = stops.filter((s) => s.lastCleanedDate === new Date().toISOString().split('T')[0]).length;
   const progressPercent = Math.round((completedStops / totalStops) * 100);
+  const isLastStop = currentIndex === totalStops - 1;
 
-  const handleDrive = () => {
-    const url = getSingleStopNavUrl(currentCustomer.address, navApp);
+  const handleNavigate = () => {
+    const url = getSingleStopNavUrl(currentCustomer.address, navApp, travelMode);
     window.open(url, '_blank');
   };
 
@@ -77,15 +82,15 @@ export function RouteRunnerBar({
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={handleDrive}
-              className="p-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-white"
-              title="Navigate"
+              onClick={handleNavigate}
+              className="p-2 bg-brand-600 hover:bg-brand-500 rounded-xl text-white cursor-pointer"
+              title={travelMode === 'walking' ? 'Walk to stop' : 'Drive to stop'}
             >
               <Navigation className="w-4 h-4 fill-white" />
             </button>
             <button
               onClick={() => setIsMinimized(false)}
-              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300"
+              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 cursor-pointer"
               title="Expand"
             >
               <Maximize2 className="w-4 h-4" />
@@ -121,27 +126,39 @@ export function RouteRunnerBar({
           <div className="flex items-center gap-1">
             <button
               onClick={onOpenMapModal}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold rounded-lg flex items-center gap-1 text-[11px] transition-colors"
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold rounded-lg flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
             >
               <Compass className="w-3.5 h-3.5" />
               <span>Map & List</span>
             </button>
             <button
               onClick={() => setIsMinimized(true)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+              className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
               title="Minimize"
             >
               <Minimize2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onCloseRunner}
-              className="p-1 text-slate-400 hover:text-red-400 rounded-lg transition-colors"
+              className="p-1 text-slate-400 hover:text-red-400 rounded-lg transition-colors cursor-pointer"
               title="Exit Route"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
+
+        {/* Doorstep Home Notification on Last Stop */}
+        {isLastStop && finishAddress && (
+          <div className="bg-sky-500/15 border border-sky-400/30 rounded-xl px-3 py-1.5 flex items-center justify-between text-xs text-sky-200">
+            <span className="flex items-center gap-1.5 font-bold">
+              <span>🏁</span> Final Stop of the Round
+            </span>
+            <span className="text-[11px] text-sky-300 font-medium truncate max-w-[220px]">
+              Home ({finishAddress.split(',')[0]}) is your next stop!
+            </span>
+          </div>
+        )}
 
         {/* Customer Info Card */}
         <div className="flex items-start justify-between gap-3 bg-slate-800/80 rounded-xl p-3 border border-slate-700/60">
@@ -168,7 +185,7 @@ export function RouteRunnerBar({
             <button
               onClick={handlePrev}
               disabled={currentIndex === 0}
-              className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 text-slate-200 transition-colors"
+              className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer"
               title="Previous Stop"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -176,7 +193,7 @@ export function RouteRunnerBar({
             <button
               onClick={handleNext}
               disabled={currentIndex === totalStops - 1}
-              className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 text-slate-200 transition-colors"
+              className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer"
               title="Next Stop"
             >
               <ChevronRight className="w-4 h-4" />
@@ -186,19 +203,19 @@ export function RouteRunnerBar({
 
         {/* Big Action Buttons (Thumb-friendly on mobile) */}
         <div className="grid grid-cols-3 gap-2">
-          {/* 1. Drive */}
+          {/* 1. Walk / Drive */}
           <button
-            onClick={handleDrive}
-            className="py-2.5 px-2 bg-sky-600 hover:bg-sky-500 active:scale-97 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all"
+            onClick={handleNavigate}
+            className="py-2.5 px-2 bg-sky-600 hover:bg-sky-500 active:scale-97 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Navigation className="w-4 h-4 fill-white" />
-            <span>Drive</span>
+            <span>{travelMode === 'walking' ? 'Walk' : 'Drive'}</span>
           </button>
 
           {/* 2. On My Way SMS */}
           <button
             onClick={() => onOpenOnMyWay(currentCustomer)}
-            className="py-2.5 px-2 bg-indigo-600 hover:bg-indigo-500 active:scale-97 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all"
+            className="py-2.5 px-2 bg-indigo-600 hover:bg-indigo-500 active:scale-97 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             <span>On My Way</span>
@@ -208,7 +225,7 @@ export function RouteRunnerBar({
           <button
             onClick={() => onMarkComplete(currentCustomer)}
             disabled={isCompleting}
-            className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-500 active:scale-97 disabled:bg-slate-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all"
+            className="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-500 active:scale-97 disabled:bg-slate-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Check className="w-4 h-4 stroke-[3]" />
             <span>Done</span>

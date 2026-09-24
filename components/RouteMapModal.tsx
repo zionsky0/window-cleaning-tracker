@@ -18,17 +18,23 @@ import {
   Layers,
   AlertCircle,
 } from 'lucide-react';
-import { Customer, NavApp, RouteStop } from '@/lib/types';
+import { Customer, NavApp, RouteStop, TravelMode } from '@/lib/types';
 import {
   optimizeTradeRoute,
   getSingleStopNavUrl,
   getMultiStopGoogleMapsUrl,
+  estimateTravelMinutes,
   GeoLocation,
 } from '@/lib/routeOptimizer';
 import {
   getLocalStartLocation,
   setLocalStartLocation,
   getLocalNavApp,
+  getLocalFinishLocation,
+  setLocalFinishLocation,
+  getLocalTravelMode,
+  setLocalTravelMode,
+  DEFAULT_FINISH_LOCATION,
 } from '@/lib/storage';
 
 type RouteScope = 'today' | 'week' | 'all';
@@ -40,7 +46,10 @@ interface RouteMapModalProps {
   weekCustomers: Customer[];
   allCustomers: Customer[];
   onApplyRouteOrder: (orderedCustomers: Customer[]) => void;
-  onStartRouteRunner: (orderedCustomers: Customer[]) => void;
+  onStartRouteRunner: (
+    orderedCustomers: Customer[],
+    options?: { travelMode?: TravelMode; finishAddress?: string }
+  ) => void;
   onMarkComplete?: (customer: Customer) => void;
 }
 
@@ -66,9 +75,18 @@ export function RouteMapModal({
   const [usedRoadNetwork, setUsedRoadNetwork] = useState(false);
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | undefined>(undefined);
 
+  // Travel Mode state: window cleaners walk with trolley/backpack by default
+  const [travelMode, setTravelMode] = useState<TravelMode>('walking');
+
   // Start Location state
   const [startAddress, setStartAddress] = useState('');
   const [startCoords, setStartCoords] = useState<GeoLocation | undefined>(undefined);
+
+  // Finish Location state (Cottage Hospital Court, Runcorn default)
+  const [finishAddress, setFinishAddress] = useState(DEFAULT_FINISH_LOCATION.address);
+  const [finishCoords, setFinishCoords] = useState<GeoLocation | undefined>(DEFAULT_FINISH_LOCATION);
+  const [finishAtHome, setFinishAtHome] = useState(true);
+
   const [selectedNavApp, setSelectedNavApp] = useState<NavApp>('google');
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
@@ -99,11 +117,26 @@ export function RouteMapModal({
         setStartCoords({ lat: savedLoc.lat, lng: savedLoc.lng, address: savedLoc.address });
       }
     }
+
+    const savedFinish = getLocalFinishLocation();
+    if (savedFinish) {
+      setFinishAddress(savedFinish.address);
+      if (savedFinish.lat && savedFinish.lng) {
+        setFinishCoords({ lat: savedFinish.lat, lng: savedFinish.lng, address: savedFinish.address });
+      }
+    }
+
+    setTravelMode(getLocalTravelMode());
     setSelectedNavApp(getLocalNavApp());
   }, [isOpen, todayCustomers.length, weekCustomers.length]);
 
   // Run Route Optimization for the active pool
-  const runOptimization = async (targets: Customer[], overrideStart?: GeoLocation) => {
+  const runOptimization = async (
+    targets: Customer[],
+    overrideStart?: GeoLocation,
+    overrideMode?: TravelMode,
+    overrideFinish?: GeoLocation | null
+  ) => {
     if (!targets || targets.length === 0) {
       setOrderedStops([]);
       setTotalMiles(0);
@@ -116,32 +149,54 @@ export function RouteMapModal({
     setIsLoading(true);
     setStatusNotice(null);
 
+    const activeMode = overrideMode || travelMode;
     const activeStart =
       overrideStart ||
       (startCoords?.lat && startCoords?.lng ? startCoords : undefined) ||
       (startAddress.trim() ? { address: startAddress.trim() } : undefined);
 
+    let activeFinish: GeoLocation | undefined = undefined;
+    if (overrideFinish !== null && finishAtHome) {
+      activeFinish =
+        overrideFinish ||
+        (finishCoords?.lat && finishCoords?.lng ? finishCoords : undefined) ||
+        (finishAddress.trim() ? { address: finishAddress.trim() } : undefined);
+    }
+
     try {
-      const result = await optimizeTradeRoute(targets, activeStart);
+      const result = await optimizeTradeRoute(targets, activeStart, {
+        travelMode: activeMode,
+        finishPoint: activeFinish,
+      });
       setOrderedStops(result.routeStops);
       setTotalMiles(result.totalDistanceMiles);
       setTotalMinutes(result.totalDurationMinutes);
       setUsedRoadNetwork(result.usedRoadNetwork);
       setRouteGeometry(result.routeGeometry);
+
+      if (result.finishPoint && (!finishCoords?.lat || !finishCoords?.lng)) {
+        setFinishCoords(result.finishPoint);
+        setLocalFinishLocation(result.finishPoint);
+      }
     } catch (e: any) {
       console.error('Route optimization error:', e);
       setStatusNotice('Route organized in street sequence.');
       // Emergency fallback: NEVER leave the user with 0 stops when targets exist
-      const fallbackStops: RouteStop[] = targets.map((c, i) => ({
-        customer: c,
-        stopIndex: i + 1,
-        distanceFromPrevMiles: i === 0 ? 0.8 : 0.4,
-        driveMinutesFromPrev: i === 0 ? 3 : 2,
-        streetName: c.address,
-      }));
+      const fallbackStops: RouteStop[] = targets.map((c, i) => {
+        const legDist = i === 0 ? 0.8 : 0.4;
+        const legTime = estimateTravelMinutes(legDist, activeMode);
+        return {
+          customer: c,
+          stopIndex: i + 1,
+          distanceFromPrevMiles: legDist,
+          driveMinutesFromPrev: legTime,
+          travelMinutesFromPrev: legTime,
+          streetName: c.address,
+        };
+      });
       setOrderedStops(fallbackStops);
       setTotalMiles(Math.round(fallbackStops.reduce((sum, s) => sum + s.distanceFromPrevMiles, 0) * 10) / 10);
-      setTotalMinutes(fallbackStops.reduce((sum, s) => sum + s.driveMinutesFromPrev, 0));
+      setTotalMinutes(fallbackStops.reduce((sum, s) => sum + (s.travelMinutesFromPrev || 2), 0));
     } finally {
       setIsLoading(false);
     }
@@ -382,6 +437,45 @@ export function RouteMapModal({
           `);
         });
 
+        // Add Finish Home marker if finishAtHome and coordinates exist
+        if (finishAtHome && finishCoords?.lat && finishCoords?.lng) {
+          validPoints.push([finishCoords.lat, finishCoords.lng]);
+
+          const finishIconHtml = `
+            <div style="
+              background: #0f172a;
+              color: white;
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 13px;
+              border: 2px solid #38bdf8;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            ">
+              🏁
+            </div>
+          `;
+
+          const finishIcon = L.divIcon({
+            html: finishIconHtml,
+            className: 'custom-finish-marker',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          });
+
+          const finishMarker = L.marker([finishCoords.lat, finishCoords.lng], { icon: finishIcon }).addTo(map);
+          finishMarker.bindPopup(`
+            <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4;">
+              <strong>🏁 Route Finish: Home</strong><br/>
+              <span>${finishAddress || 'Home'}</span><br/>
+              <span style="color: #0284c7; font-weight: bold;">Ends closest to home</span>
+            </div>
+          `);
+        }
+
         // Fit bounds around the plotted route
         try {
           if (routeLine) {
@@ -407,14 +501,17 @@ export function RouteMapModal({
         leafletMapRef.current = null;
       }
     };
-  }, [isOpen, orderedStops, routeGeometry, startCoords]);
+  }, [isOpen, orderedStops, routeGeometry, startCoords, finishCoords, finishAtHome, travelMode]);
 
   if (!isOpen) return null;
 
   const currentOrderedCustomers = orderedStops.map((s) => s.customer);
 
   const handleStartRunner = () => {
-    onStartRouteRunner(currentOrderedCustomers);
+    onStartRouteRunner(currentOrderedCustomers, {
+      travelMode,
+      finishAddress: finishAtHome ? finishAddress : undefined,
+    });
     onClose();
   };
 
@@ -422,7 +519,8 @@ export function RouteMapModal({
     const addresses = currentOrderedCustomers.map((c) => c.address);
     const url = getMultiStopGoogleMapsUrl(
       addresses,
-      startAddress !== 'My Current GPS Location' ? startAddress : undefined
+      startAddress !== 'My Current GPS Location' ? startAddress : undefined,
+      travelMode
     );
     window.open(url, '_blank');
   };
@@ -441,12 +539,16 @@ export function RouteMapModal({
             </div>
             <div>
               <h2 className="font-bold text-base text-slate-900">Trade Route Planner</h2>
-              <p className="text-xs text-slate-500">Shortest driving route & turn-by-turn order</p>
+              <p className="text-xs text-slate-500">
+                {travelMode === 'walking'
+                  ? 'Walking / Footpath route • Finishes nearest home'
+                  : 'Shortest driving route • Turn-by-turn order'}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -459,7 +561,7 @@ export function RouteMapModal({
             <button
               type="button"
               onClick={() => setScope('today')}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'today'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -470,7 +572,7 @@ export function RouteMapModal({
             <button
               type="button"
               onClick={() => setScope('week')}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'week'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -481,7 +583,7 @@ export function RouteMapModal({
             <button
               type="button"
               onClick={() => setScope('all')}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'all'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -491,7 +593,49 @@ export function RouteMapModal({
             </button>
           </div>
 
-          {/* 2. Start Point & Settings Bar */}
+          {/* 2. Travel Mode Toggle: Walk on Foot (Default) vs Drive in Van */}
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-2.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs font-bold text-slate-700">Mode:</span>
+              <span className="text-[11px] text-slate-500 truncate">
+                {travelMode === 'walking' ? '🚶 Footpaths & trolley pace' : '🚗 Van road navigation'}
+              </span>
+            </div>
+            <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setTravelMode('walking');
+                  setLocalTravelMode('walking');
+                  runOptimization(activeCustomers, undefined, 'walking');
+                }}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  travelMode === 'walking'
+                    ? 'bg-white text-brand-600 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🚶 Walk</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTravelMode('driving');
+                  setLocalTravelMode('driving');
+                  runOptimization(activeCustomers, undefined, 'driving');
+                }}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  travelMode === 'driving'
+                    ? 'bg-white text-brand-600 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🚗 Drive</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Start Location Bar */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-[11px] uppercase tracking-wider text-slate-600 flex items-center gap-1">
@@ -519,7 +663,7 @@ export function RouteMapModal({
                     runOptimization(activeCustomers, startAddress.trim() ? { address: startAddress.trim() } : undefined);
                   }
                 }}
-                placeholder="Enter Depot or Home Postcode (e.g. WA7 4AA)"
+                placeholder="Enter Depot or Start Postcode (e.g. WA7 4AA)"
                 className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <button
@@ -540,18 +684,94 @@ export function RouteMapModal({
             </div>
           </div>
 
-          {/* 3. Interactive Leaflet Map Canvas */}
+          {/* 4. Finish / Home Location Bar (Ends Nearest Cottage Hospital Court) */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[11px] uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <span className="text-sm">🏁</span>
+                Finish Near Home (Doorstep)
+              </span>
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-brand-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={finishAtHome}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setFinishAtHome(checked);
+                    runOptimization(
+                      activeCustomers,
+                      undefined,
+                      travelMode,
+                      checked ? finishCoords || { address: finishAddress } : null
+                    );
+                  }}
+                  className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer accent-brand-600"
+                />
+                <span>{finishAtHome ? 'Active' : 'Off'}</span>
+              </label>
+            </div>
+
+            {finishAtHome && (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={finishAddress}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFinishAddress(val);
+                      const loc = { address: val };
+                      setLocalFinishLocation(loc);
+                      setFinishCoords(loc);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        runOptimization(activeCustomers);
+                      }
+                    }}
+                    placeholder="Cottage Hospital Court, Runcorn, WA7 4AA"
+                    className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  {finishAddress !== DEFAULT_FINISH_LOCATION.address && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFinishAddress(DEFAULT_FINISH_LOCATION.address);
+                        setFinishCoords(DEFAULT_FINISH_LOCATION);
+                        setLocalFinishLocation(DEFAULT_FINISH_LOCATION);
+                        runOptimization(activeCustomers, undefined, travelMode, DEFAULT_FINISH_LOCATION);
+                      }}
+                      className="px-2.5 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer"
+                      title="Reset to Cottage Hospital Court"
+                    >
+                      Reset Home
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Stops are sequenced so the customer closest to <strong className="text-slate-700">Cottage Hospital Court</strong> is visited last, leaving you on your doorstep when finished.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Interactive Leaflet Map Canvas */}
           <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative h-48 sm:h-56 shadow-inner">
             <div ref={mapContainerRef} className="w-full h-full" />
             {isLoading && (
               <div className="absolute inset-0 bg-white/70 backdrop-blur-xs flex items-center justify-center gap-2 text-xs font-bold text-slate-700">
                 <RefreshCw className="w-4 h-4 animate-spin text-brand-600" />
-                <span>Computing shortest road route...</span>
+                <span>
+                  {travelMode === 'walking'
+                    ? 'Computing shortest walking route...'
+                    : 'Computing shortest driving route...'}
+                </span>
               </div>
             )}
           </div>
 
-          {/* 4. Route Summary Metrics Pill */}
+          {/* 6. Route Summary Metrics Pill */}
           <div className="grid grid-cols-4 gap-2 bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-center">
             <div>
               <span className="text-[10px] text-slate-500 font-bold block uppercase">Stops</span>
@@ -560,13 +780,17 @@ export function RouteMapModal({
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">Drive</span>
+              <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                {travelMode === 'walking' ? 'Walk' : 'Drive'}
+              </span>
               <span className="text-sm sm:text-base font-extrabold text-brand-600">
                 {totalMiles} mi
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 font-bold block uppercase">Est. Time</span>
+              <span className="text-[10px] text-slate-500 font-bold block uppercase">
+                {travelMode === 'walking' ? 'Est. Walk' : 'Est. Drive'}
+              </span>
               <span className="text-sm sm:text-base font-extrabold text-slate-900">
                 {totalMinutes} min
               </span>
@@ -586,7 +810,7 @@ export function RouteMapModal({
             </div>
           )}
 
-          {/* 5. Turn-by-Turn Stop Order List */}
+          {/* 7. Turn-by-Turn Stop Order List */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
@@ -617,6 +841,7 @@ export function RouteMapModal({
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                 {orderedStops.map((stop, index) => {
                   const isDone = stop.customer.lastCleanedDate === todayStr;
+                  const isLastStop = index === orderedStops.length - 1;
 
                   return (
                     <div
@@ -624,6 +849,8 @@ export function RouteMapModal({
                       className={`bg-white border rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs transition-all ${
                         isDone
                           ? 'border-emerald-300 bg-emerald-50/30'
+                          : isLastStop && finishAtHome
+                          ? 'border-sky-300 bg-sky-50/20'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
@@ -658,6 +885,11 @@ export function RouteMapModal({
                             <span className="font-extrabold text-[11px] text-emerald-700">
                               £{stop.customer.price}
                             </span>
+                            {isLastStop && finishAtHome && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-sky-100 text-sky-700 rounded-md shrink-0">
+                                🏁 Near Home
+                              </span>
+                            )}
                           </div>
                           <span className="text-[11px] text-slate-500 block truncate">
                             {stop.customer.address}
@@ -667,20 +899,21 @@ export function RouteMapModal({
 
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[10px] font-medium text-slate-400 hidden sm:inline mr-1">
-                          {stop.distanceFromPrevMiles} mi
+                          {stop.distanceFromPrevMiles} mi • {stop.travelMinutesFromPrev || stop.driveMinutesFromPrev || 1}m
                         </span>
 
-                        {/* Single-leg Drive button */}
+                        {/* Single-leg Nav button */}
                         <button
                           onClick={() => {
                             const url = getSingleStopNavUrl(
                               stop.customer.address,
-                              selectedNavApp
+                              selectedNavApp,
+                              travelMode
                             );
                             window.open(url, '_blank');
                           }}
-                          className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-100 transition-colors"
-                          title="Drive to this house"
+                          className="p-1.5 text-slate-500 hover:text-brand-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                          title={travelMode === 'walking' ? 'Walk to this house' : 'Drive to this house'}
                         >
                           <Navigation className="w-3.5 h-3.5" />
                         </button>
@@ -689,7 +922,7 @@ export function RouteMapModal({
                         <button
                           onClick={() => handleMoveStop(index, 'up')}
                           disabled={index === 0}
-                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded"
+                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded cursor-pointer"
                           title="Move earlier"
                         >
                           <ArrowUp className="w-3.5 h-3.5" />
@@ -697,7 +930,7 @@ export function RouteMapModal({
                         <button
                           onClick={() => handleMoveStop(index, 'down')}
                           disabled={index === orderedStops.length - 1}
-                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded"
+                          className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20 rounded cursor-pointer"
                           title="Move later"
                         >
                           <ArrowDown className="w-3.5 h-3.5" />
@@ -720,7 +953,9 @@ export function RouteMapModal({
             className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 active:scale-98 disabled:bg-slate-300 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4 fill-white" />
-            <span>Start Active Route Runner ({orderedStops.length} Stops)</span>
+            <span>
+              Start Active {travelMode === 'walking' ? 'Walking' : 'Driving'} Route ({orderedStops.length} Stops)
+            </span>
           </button>
 
           {/* 2. Open Google Maps */}
@@ -730,7 +965,7 @@ export function RouteMapModal({
             className="py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <Share2 className="w-4 h-4 text-slate-500" />
-            <span>Open in Google Maps</span>
+            <span>Open {travelMode === 'walking' ? 'Walking' : 'Driving'} Route in Google Maps</span>
           </button>
         </div>
       </div>

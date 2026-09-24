@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Users, Plus, RefreshCw, Compass, MapPin, X } from 'lucide-react';
-import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp } from '@/lib/types';
+import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp, TravelMode } from '@/lib/types';
 import {
   getTodayDateString,
   getDaysDifference,
@@ -222,7 +222,10 @@ export default function HomePage() {
   };
 
   // Route Handlers
-  const handleStartRouteRunner = (orderedCustomers: Customer[]) => {
+  const handleStartRouteRunner = (
+    orderedCustomers: Customer[],
+    options?: { travelMode?: TravelMode; finishAddress?: string }
+  ) => {
     // Save any newly geocoded coordinates to customer state
     const customerMap = new Map(orderedCustomers.map((c) => [c.id, c]));
     const updatedAll = customers.map((c) => {
@@ -235,6 +238,8 @@ export default function HomePage() {
       isActive: true,
       stopIds: orderedCustomers.map((c) => c.id),
       currentStopIndex: 0,
+      travelMode: options?.travelMode || 'walking',
+      finishAddress: options?.finishAddress,
       lastOptimizedAt: new Date().toISOString(),
     };
     setActiveRoute(routeState);
@@ -580,6 +585,8 @@ export default function HomePage() {
           onOpenMapModal={() => setIsRouteModalOpen(true)}
           onCloseRunner={handleEndRoute}
           navApp={navApp}
+          travelMode={activeRoute.travelMode || 'walking'}
+          finishAddress={activeRoute.finishAddress}
           isCompleting={completingId !== null}
         />
       )}

@@ -1,7 +1,18 @@
-import { Customer } from './types';
+import { Customer, NavApp, ActiveRouteState, TravelMode } from './types';
 
 const STORAGE_KEY_CUSTOMERS = 'clearview_rounds_v2';
 const STORAGE_KEY_USER = 'clearview_user_v2';
+const STORAGE_KEY_ACTIVE_ROUTE = 'clearview_active_route_v1';
+const STORAGE_KEY_START_LOCATION = 'clearview_start_loc_v1';
+const STORAGE_KEY_FINISH_LOCATION = 'clearview_finish_loc_v1';
+const STORAGE_KEY_TRAVEL_MODE = 'clearview_travel_mode_v1';
+const STORAGE_KEY_NAV_APP = 'clearview_nav_app_v1';
+
+export const DEFAULT_FINISH_LOCATION = {
+  address: 'Cottage Hospital Court, Runcorn, WA7 4AA',
+  lat: 53.33556,
+  lng: -2.74025,
+};
 
 export interface CleanerUser {
   identifier: string; // phone or email
@@ -64,12 +75,6 @@ export function setLocalUser(user: CleanerUser | null): void {
     console.error('Error saving local user:', err);
   }
 }
-
-const STORAGE_KEY_ACTIVE_ROUTE = 'clearview_active_route_v1';
-const STORAGE_KEY_START_LOCATION = 'clearview_start_loc_v1';
-const STORAGE_KEY_NAV_APP = 'clearview_nav_app_v1';
-
-import { ActiveRouteState, NavApp } from './types';
 
 export function getLocalActiveRoute(): ActiveRouteState | null {
   if (typeof window === 'undefined') return null;
@@ -138,3 +143,54 @@ export function setLocalNavApp(app: NavApp): void {
     console.error('Error saving nav app:', err);
   }
 }
+
+export function getLocalFinishLocation(): { address: string; lat?: number; lng?: number } {
+  if (typeof window === 'undefined') return DEFAULT_FINISH_LOCATION;
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_FINISH_LOCATION);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed.address === 'string' && parsed.address.trim()) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading finish location:', err);
+  }
+  return DEFAULT_FINISH_LOCATION;
+}
+
+export function setLocalFinishLocation(loc: { address: string; lat?: number; lng?: number } | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (loc) {
+      localStorage.setItem(STORAGE_KEY_FINISH_LOCATION, JSON.stringify(loc));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_FINISH_LOCATION);
+    }
+  } catch (err) {
+    console.error('Error saving finish location:', err);
+  }
+}
+
+export function getLocalTravelMode(): TravelMode {
+  if (typeof window === 'undefined') return 'walking';
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_TRAVEL_MODE);
+    if (val === 'driving' || val === 'walking') return val;
+  } catch (err) {
+    console.error('Error reading travel mode:', err);
+  }
+  // Default to walking as window cleaners walk on foot with trolley/backpack
+  return 'walking';
+}
+
+export function setLocalTravelMode(mode: TravelMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_TRAVEL_MODE, mode);
+  } catch (err) {
+    console.error('Error saving travel mode:', err);
+  }
+}
+
