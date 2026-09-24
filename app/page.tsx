@@ -71,12 +71,53 @@ export default function HomePage() {
     }
     setNavApp(localNav);
     setIsLoaded(true);
+
+    // Auto-sync with cloud on initial app load if logged in
+    if (localUsr?.identifier && localUsr?.token) {
+      fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync',
+          identifier: localUsr.identifier,
+          pin: localUsr.token,
+          customers: localCust,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.customers) && data.customers.length > 0) {
+            // If device local had 0 or server has customers, adopt them immediately
+            if (localCust.length === 0 || data.customers.length >= localCust.length) {
+              setCustomers(data.customers);
+              setLocalCustomers(data.customers);
+            }
+          }
+        })
+        .catch((err) => console.warn('Background cloud sync failed:', err));
+    }
   }, []);
 
-  // Save to localStorage whenever customers change
+  // Save to localStorage whenever customers change & auto-sync to cloud if logged in
   const updateCustomers = useCallback((newCustomers: Customer[]) => {
     setCustomers(newCustomers);
     setLocalCustomers(newCustomers);
+
+    const localUsr = getLocalUser();
+    if (localUsr?.identifier && localUsr?.token) {
+      fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'push',
+          identifier: localUsr.identifier,
+          pin: localUsr.token,
+          businessName: localUsr.businessName,
+          cleanerName: localUsr.cleanerName,
+          customers: newCustomers,
+        }),
+      }).catch((err) => console.warn('Auto cloud sync error:', err));
+    }
   }, []);
 
   const todayStr = getTodayDateString();
@@ -174,8 +215,9 @@ export default function HomePage() {
   const handleUserChange = (user: CleanerUser | null, syncedCustomers?: Customer[]) => {
     setCurrentUser(user);
     setLocalUser(user);
-    if (syncedCustomers && syncedCustomers.length > 0) {
-      updateCustomers(syncedCustomers);
+    if (Array.isArray(syncedCustomers)) {
+      setCustomers(syncedCustomers);
+      setLocalCustomers(syncedCustomers);
     }
   };
 

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (action === 'sync') {
+    if (action === 'sync' || action === 'pull' || action === 'push') {
       const existing = await getAccount(cleanIdentifier);
 
       if (existing) {
@@ -81,8 +81,8 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // If client has newer customers, merge/update
-        if (Array.isArray(customers) && customers.length > 0) {
+        // If push or sync with customers: update cloud
+        if ((action === 'push' || action === 'sync') && Array.isArray(customers) && (customers.length > 0 || body.forceEmpty)) {
           existing.customers = customers;
           existing.updatedAt = new Date().toISOString();
           if (businessName) existing.businessName = businessName;
@@ -95,13 +95,13 @@ export async function POST(req: NextRequest) {
           mode: 'synced',
           businessName: existing.businessName,
           cleanerName: existing.cleanerName,
-          customers: existing.customers,
+          customers: existing.customers || [],
           lastSyncedAt: existing.updatedAt,
         });
       } else {
         // Register new account permanently
         const newRecord: AccountRecord = {
-          pinOrPassword: cleanPin,
+          pinOrPassword: cleanPassword,
           businessName: businessName?.trim() || 'ClearView',
           cleanerName: cleanerName?.trim() || 'Cleaner',
           customers: Array.isArray(customers) ? customers : [],

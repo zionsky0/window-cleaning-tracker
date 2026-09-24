@@ -78,14 +78,25 @@ export function SyncModal({
         type: tab,
         businessName: data.businessName || companyName,
         cleanerName: data.cleanerName || cleanerName,
+        token: cleanPassword,
         lastSyncedAt: data.lastSyncedAt || new Date().toISOString(),
       };
 
       onBusinessNameChange(updatedUser.businessName);
-      onUserChange(updatedUser, data.customers);
+
+      // If server returned customers, pass them. If server had 0 but client has local customers, keep client's!
+      const targetCustomers =
+        Array.isArray(data.customers) && data.customers.length > 0
+          ? data.customers
+          : customers;
+
+      onUserChange(updatedUser, targetCustomers);
 
       setMessage({
-        text: data.mode === 'registered' ? 'Account created and rounds backed up!' : 'Cloud rounds synced successfully!',
+        text:
+          data.mode === 'registered'
+            ? 'Account created and rounds backed up!'
+            : `Synced! Loaded ${targetCustomers.length} contacts.`,
         type: 'success',
       });
 
@@ -94,6 +105,82 @@ export function SyncModal({
       }, 1500);
     } catch (err: any) {
       setMessage({ text: err.message || 'Sync failed. Please check your details.', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePushToCloud = async () => {
+    const activePass = currentUser?.token || password.trim();
+    if (!activePass) {
+      setMessage({ text: 'Please enter your password to backup to the cloud.', type: 'error' });
+      return;
+    }
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'push',
+          identifier: currentUser?.identifier,
+          pin: activePass,
+          businessName,
+          customers,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to backup');
+
+      const updatedUser: CleanerUser = {
+        ...currentUser!,
+        token: activePass,
+        lastSyncedAt: data.lastSyncedAt || new Date().toISOString(),
+      };
+      onUserChange(updatedUser, customers);
+      setMessage({ text: `Backed up ${customers.length} contacts to cloud!`, type: 'success' });
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Backup failed', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePullFromCloud = async () => {
+    const activePass = currentUser?.token || password.trim();
+    if (!activePass) {
+      setMessage({ text: 'Please enter your password to download from cloud.', type: 'error' });
+      return;
+    }
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/simple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'pull',
+          identifier: currentUser?.identifier,
+          pin: activePass,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to download from cloud');
+
+      const updatedUser: CleanerUser = {
+        ...currentUser!,
+        token: activePass,
+        lastSyncedAt: data.lastSyncedAt || new Date().toISOString(),
+      };
+      if (Array.isArray(data.customers)) {
+        onUserChange(updatedUser, data.customers);
+        setMessage({ text: `Downloaded ${data.customers.length} contacts from cloud!`, type: 'success' });
+      }
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Download failed', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +219,7 @@ export function SyncModal({
         {/* Content */}
         <div className="p-5 space-y-4 overflow-y-auto">
           {currentUser ? (
-            <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 space-y-3">
+            <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 space-y-3.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs uppercase tracking-wider text-sky-800">
                   Connected Account
@@ -142,20 +229,77 @@ export function SyncModal({
                   Active Cloud Sync
                 </span>
               </div>
-              <div className="text-xs text-slate-700 space-y-1">
-                <p><strong>Account:</strong> {currentUser.identifier}</p>
-                <p><strong>Round Name:</strong> {currentUser.businessName}</p>
+
+              <div className="bg-white/80 border border-sky-100 rounded-xl p-3 text-xs text-slate-700 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Account:</span>
+                  <span className="font-bold">{currentUser.identifier}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Round Name:</span>
+                  <span className="font-bold">{currentUser.businessName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Device Contacts:</span>
+                  <span className="font-bold text-brand-600">{customers.length} contacts</span>
+                </div>
                 {currentUser.lastSyncedAt && (
-                  <p className="text-slate-500 text-[11px]">
-                    Last backed up: {new Date(currentUser.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <div className="flex justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+                    <span>Last Backed Up:</span>
+                    <span>
+                      {new Date(currentUser.lastSyncedAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
                 )}
               </div>
-              <div className="pt-2 flex gap-2">
+
+              {/* Password prompt if token missing from storage */}
+              {!currentUser.token && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Account Password (to sync)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              )}
+
+              {/* Sync Actions */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handlePushToCloud}
+                  disabled={isLoading}
+                  className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>Backup This Device to Cloud ({customers.length} contacts)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePullFromCloud}
+                  disabled={isLoading}
+                  className="w-full py-2.5 bg-sky-100 hover:bg-sky-200 disabled:opacity-50 text-brand-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Cloud className="w-3.5 h-3.5" />
+                  <span>Download / Refresh from Cloud</span>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-sky-100">
                 <button
                   type="button"
                   onClick={handleSignOut}
-                  className="flex-1 py-2 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5"
+                  className="w-full py-2 border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Log Out (Keep Local Data)</span>

@@ -8,6 +8,7 @@ export interface CleanerUser {
   type: 'phone' | 'email';
   businessName: string;
   cleanerName: string;
+  token?: string;
   lastSyncedAt?: string;
 }
 
