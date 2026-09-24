@@ -150,13 +150,26 @@ export function RouteRunnerBar({
 
         {/* Doorstep Home Notification on Last Stop */}
         {isLastStop && finishAddress && (
-          <div className="bg-sky-500/15 border border-sky-400/30 rounded-xl px-3 py-1.5 flex items-center justify-between text-xs text-sky-200">
+          <div className="bg-sky-500/15 border border-sky-400/30 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-sky-200">
             <span className="flex items-center gap-1.5 font-bold">
               <span>🏁</span> Final Stop of the Round
             </span>
-            <span className="text-[11px] text-sky-300 font-medium truncate max-w-[220px]">
-              Home ({finishAddress.split(',')[0]}) is your next stop!
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-sky-300 font-medium truncate max-w-[160px] sm:max-w-[200px]">
+                Home ({finishAddress.split(',')[0]})
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = getSingleStopNavUrl(finishAddress, navApp, travelMode);
+                  window.open(url, '_blank');
+                }}
+                className="px-2 py-0.5 bg-sky-500 hover:bg-sky-400 text-slate-900 font-extrabold rounded-lg text-[10px] cursor-pointer transition-colors"
+                title="Navigate home"
+              >
+                {travelMode === 'walking' ? '🚶 Walk Home' : '🚗 Drive Home'}
+              </button>
+            </div>
           </div>
         )}
 

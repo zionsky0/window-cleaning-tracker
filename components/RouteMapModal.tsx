@@ -71,6 +71,8 @@ export function RouteMapModal({
   const [orderedStops, setOrderedStops] = useState<RouteStop[]>([]);
   const [totalMiles, setTotalMiles] = useState(0);
   const [totalMinutes, setTotalMinutes] = useState(0);
+  const [doorstepDistanceMiles, setDoorstepDistanceMiles] = useState<number | undefined>(undefined);
+  const [doorstepMinutes, setDoorstepMinutes] = useState<number | undefined>(undefined);
   const [usedRoadNetwork, setUsedRoadNetwork] = useState(false);
   const [routeGeometry, setRouteGeometry] = useState<[number, number][] | undefined>(undefined);
 
@@ -97,47 +99,10 @@ export function RouteMapModal({
       ? weekCustomers
       : allCustomers;
 
-  // On initial open: pick best initial scope so cleaner NEVER sees an empty screen
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (todayCustomers.length > 0) {
-      setScope('today');
-    } else if (weekCustomers.length > 0) {
-      setScope('week');
-    } else {
-      setScope('all');
-    }
-
-    const savedLoc = getLocalStartLocation();
-    if (savedLoc) {
-      setStartAddress(savedLoc.address);
-      if (savedLoc.lat && savedLoc.lng) {
-        setStartCoords({ lat: savedLoc.lat, lng: savedLoc.lng, address: savedLoc.address });
-      }
-    }
-
-    const savedFinish = getLocalFinishLocation();
-    if (savedFinish && savedFinish.address && savedFinish.address.trim()) {
-      setFinishAddress(savedFinish.address);
-      setFinishAtHome(true);
-      if (savedFinish.lat && savedFinish.lng) {
-        setFinishCoords({ lat: savedFinish.lat, lng: savedFinish.lng, address: savedFinish.address });
-      }
-    } else {
-      setFinishAddress('');
-      setFinishCoords(undefined);
-      setFinishAtHome(false);
-    }
-
-    setTravelMode(getLocalTravelMode());
-    setSelectedNavApp(getLocalNavApp());
-  }, [isOpen, todayCustomers.length, weekCustomers.length]);
-
   // Run Route Optimization for the active pool
   const runOptimization = async (
     targets: Customer[],
-    overrideStart?: GeoLocation,
+    overrideStart?: GeoLocation | null,
     overrideMode?: TravelMode,
     overrideFinish?: GeoLocation | null
   ) => {
@@ -146,6 +111,8 @@ export function RouteMapModal({
       setTotalMiles(0);
       setTotalMinutes(0);
       setRouteGeometry(undefined);
+      setDoorstepDistanceMiles(undefined);
+      setDoorstepMinutes(undefined);
       setIsLoading(false);
       return;
     }
@@ -155,16 +122,18 @@ export function RouteMapModal({
 
     const activeMode = overrideMode || travelMode;
     const activeStart =
-      overrideStart ||
-      (startCoords?.lat && startCoords?.lng ? startCoords : undefined) ||
-      (startAddress.trim() ? { address: startAddress.trim() } : undefined);
+      overrideStart !== undefined
+        ? overrideStart || undefined
+        : (startCoords?.lat && startCoords?.lng ? startCoords : undefined) ||
+          (startAddress.trim() ? { address: startAddress.trim() } : undefined);
 
     let activeFinish: GeoLocation | undefined = undefined;
-    if (overrideFinish !== null && finishAtHome) {
+    if (overrideFinish !== undefined) {
+      activeFinish = overrideFinish || undefined;
+    } else if (finishAtHome && finishAddress.trim()) {
       activeFinish =
-        overrideFinish ||
         (finishCoords?.lat && finishCoords?.lng ? finishCoords : undefined) ||
-        (finishAddress.trim() ? { address: finishAddress.trim() } : undefined);
+        { address: finishAddress.trim() };
     }
 
     try {
@@ -177,6 +146,8 @@ export function RouteMapModal({
       setTotalMinutes(result.totalDurationMinutes);
       setUsedRoadNetwork(result.usedRoadNetwork);
       setRouteGeometry(result.routeGeometry);
+      setDoorstepDistanceMiles(result.doorstepDistanceMiles);
+      setDoorstepMinutes(result.doorstepMinutes);
 
       if (result.finishPoint && (!finishCoords?.lat || !finishCoords?.lng)) {
         setFinishCoords(result.finishPoint);
@@ -187,7 +158,7 @@ export function RouteMapModal({
       setStatusNotice('Route organized in street sequence.');
       // Emergency fallback: NEVER leave the user with 0 stops when targets exist
       const fallbackStops: RouteStop[] = targets.map((c, i) => {
-        const legDist = i === 0 ? 0.8 : 0.4;
+        const legDist = i === 0 ? 0.4 : 0.2;
         const legTime = estimateTravelMinutes(legDist, activeMode);
         return {
           customer: c,
@@ -206,12 +177,67 @@ export function RouteMapModal({
     }
   };
 
-  // Re-run optimization when scope or customer pool changes
+  // On initial open: pick best initial scope and load saved start/finish locations synchronously
   useEffect(() => {
-    if (isOpen) {
-      runOptimization(activeCustomers);
+    if (!isOpen) return;
+
+    let targetScope: RouteScope = 'today';
+    let pool = todayCustomers;
+    if (todayCustomers.length > 0) {
+      targetScope = 'today';
+      pool = todayCustomers;
+    } else if (weekCustomers.length > 0) {
+      targetScope = 'week';
+      pool = weekCustomers;
+    } else {
+      targetScope = 'all';
+      pool = allCustomers;
     }
-  }, [isOpen, scope, activeCustomers.length]);
+    setScope(targetScope);
+
+    const savedLoc = getLocalStartLocation();
+    let initialStart: GeoLocation | undefined = undefined;
+    if (savedLoc && savedLoc.address) {
+      setStartAddress(savedLoc.address);
+      if (savedLoc.lat && savedLoc.lng) {
+        initialStart = { lat: savedLoc.lat, lng: savedLoc.lng, address: savedLoc.address };
+        setStartCoords(initialStart);
+      } else {
+        initialStart = { address: savedLoc.address };
+      }
+    }
+
+    const savedFinish = getLocalFinishLocation();
+    let initialFinish: GeoLocation | undefined = undefined;
+    if (savedFinish && savedFinish.address && savedFinish.address.trim()) {
+      setFinishAddress(savedFinish.address);
+      setFinishAtHome(true);
+      if (savedFinish.lat && savedFinish.lng) {
+        initialFinish = { lat: savedFinish.lat, lng: savedFinish.lng, address: savedFinish.address };
+        setFinishCoords(initialFinish);
+      } else {
+        initialFinish = { address: savedFinish.address };
+      }
+    } else {
+      setFinishAddress('');
+      setFinishCoords(undefined);
+      setFinishAtHome(false);
+    }
+
+    const mode = getLocalTravelMode();
+    setTravelMode(mode);
+    setSelectedNavApp(getLocalNavApp());
+
+    // Synchronously run optimization with initial loaded configuration
+    runOptimization(pool, initialStart, mode, initialFinish);
+  }, [isOpen]);
+
+  // Handle scope changes (Today / Week / All)
+  const handleScopeChange = (newScope: RouteScope) => {
+    setScope(newScope);
+    const pool = newScope === 'today' ? todayCustomers : newScope === 'week' ? weekCustomers : allCustomers;
+    runOptimization(pool);
+  };
 
   // Handle GPS start location
   const handleUseGps = () => {
@@ -241,12 +267,34 @@ export function RouteMapModal({
     );
   };
 
-  // Save manual depot address
-  const handleSaveStartAddress = (val: string) => {
-    setStartAddress(val);
-    const loc = { address: val };
-    setLocalStartLocation(loc);
-    setStartCoords({ address: val });
+  // Save manual depot address with instant server-side geocoding
+  const handleApplyStartAddress = async (val: string) => {
+    const trimmed = val.trim();
+    setStartAddress(trimmed);
+    if (!trimmed) {
+      setStartCoords(undefined);
+      setLocalStartLocation(null);
+      runOptimization(activeCustomers, null);
+      return;
+    }
+
+    setIsLoading(true);
+    let resolved: GeoLocation = { address: trimmed };
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.lat && data.lng) {
+          resolved = { address: trimmed, lat: data.lat, lng: data.lng };
+        }
+      }
+    } catch (e) {
+      // fallback
+    }
+
+    setStartCoords(resolved);
+    setLocalStartLocation(resolved);
+    runOptimization(activeCustomers, resolved);
   };
 
   // Handle GPS Home/Finish location
@@ -278,15 +326,34 @@ export function RouteMapModal({
     );
   };
 
-  // Save manual finish/home address
-  const handleSaveFinishAddress = (val: string) => {
-    setFinishAddress(val);
-    const loc = val.trim() ? { address: val.trim() } : null;
-    setLocalFinishLocation(loc);
-    setFinishCoords(loc || undefined);
-    if (!val.trim()) {
-      setFinishAtHome(false);
+  // Save manual finish/home address with instant server-side geocoding
+  const handleApplyFinishAddress = async (val: string) => {
+    const trimmed = val.trim();
+    setFinishAddress(trimmed);
+    if (!trimmed) {
+      handleClearFinishAddress();
+      return;
     }
+
+    setFinishAtHome(true);
+    setIsLoading(true);
+
+    let resolved: GeoLocation = { address: trimmed };
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.lat && data.lng) {
+          resolved = { address: trimmed, lat: data.lat, lng: data.lng };
+        }
+      }
+    } catch (e) {
+      // fallback
+    }
+
+    setFinishCoords(resolved);
+    setLocalFinishLocation(resolved);
+    runOptimization(activeCustomers, undefined, travelMode, resolved);
   };
 
   // Clear home/finish location
@@ -294,6 +361,8 @@ export function RouteMapModal({
     setFinishAddress('');
     setFinishCoords(undefined);
     setFinishAtHome(false);
+    setDoorstepDistanceMiles(undefined);
+    setDoorstepMinutes(undefined);
     setLocalFinishLocation(null);
     runOptimization(activeCustomers, undefined, travelMode, null);
   };
@@ -613,7 +682,7 @@ export function RouteMapModal({
           <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl text-xs font-bold">
             <button
               type="button"
-              onClick={() => setScope('today')}
+              onClick={() => handleScopeChange('today')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'today'
                   ? 'bg-white text-slate-900 shadow-xs'
@@ -624,7 +693,7 @@ export function RouteMapModal({
             </button>
             <button
               type="button"
-              onClick={() => setScope('week')}
+              onClick={() => handleScopeChange('week')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'week'
                   ? 'bg-white text-slate-900 shadow-xs'
@@ -635,7 +704,7 @@ export function RouteMapModal({
             </button>
             <button
               type="button"
-              onClick={() => setScope('all')}
+              onClick={() => handleScopeChange('all')}
               className={`py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 scope === 'all'
                   ? 'bg-white text-slate-900 shadow-xs'
@@ -709,11 +778,11 @@ export function RouteMapModal({
               <input
                 type="text"
                 value={startAddress}
-                onChange={(e) => handleSaveStartAddress(e.target.value)}
+                onChange={(e) => setStartAddress(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    runOptimization(activeCustomers, startAddress.trim() ? { address: startAddress.trim() } : undefined);
+                    handleApplyStartAddress(startAddress);
                   }
                 }}
                 placeholder="Enter Depot or Start Postcode (e.g. WA7 4AA)"
@@ -721,9 +790,11 @@ export function RouteMapModal({
               />
               <button
                 type="button"
-                onClick={() =>
-                  runOptimization(activeCustomers, startAddress.trim() ? { address: startAddress.trim() } : undefined)
-                }
+                onClick={() => {
+                  const startLoc = startAddress.trim() ? startCoords || { address: startAddress.trim() } : undefined;
+                  const finishLoc = finishAtHome && finishAddress.trim() ? finishCoords || { address: finishAddress.trim() } : null;
+                  runOptimization(activeCustomers, startLoc, travelMode, finishLoc);
+                }}
                 disabled={isLoading || activeCustomers.length === 0}
                 className="px-3 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer"
               >
@@ -761,12 +832,12 @@ export function RouteMapModal({
                     onChange={(e) => {
                       const checked = e.target.checked;
                       setFinishAtHome(checked);
-                      runOptimization(
-                        activeCustomers,
-                        undefined,
-                        travelMode,
-                        checked && finishAddress.trim() ? finishCoords || { address: finishAddress.trim() } : null
-                      );
+                      const finishLoc = checked && finishAddress.trim() ? finishCoords || { address: finishAddress.trim() } : null;
+                      if (!checked) {
+                        setDoorstepDistanceMiles(undefined);
+                        setDoorstepMinutes(undefined);
+                      }
+                      runOptimization(activeCustomers, undefined, travelMode, finishLoc);
                     }}
                     className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer accent-brand-600"
                   />
@@ -776,21 +847,16 @@ export function RouteMapModal({
             </div>
 
             {finishAtHome && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={finishAddress}
-                    onChange={(e) => handleSaveFinishAddress(e.target.value)}
+                    onChange={(e) => setFinishAddress(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        runOptimization(
-                          activeCustomers,
-                          undefined,
-                          travelMode,
-                          finishAddress.trim() ? { address: finishAddress.trim() } : null
-                        );
+                        handleApplyFinishAddress(finishAddress);
                       }
                     }}
                     placeholder="Enter your Home or Base Postcode (e.g. WA7 4AA)"
@@ -799,14 +865,7 @@ export function RouteMapModal({
                   {finishAddress.trim() && (
                     <button
                       type="button"
-                      onClick={() =>
-                        runOptimization(
-                          activeCustomers,
-                          undefined,
-                          travelMode,
-                          finishAddress.trim() ? { address: finishAddress.trim() } : null
-                        )
-                      }
+                      onClick={() => handleApplyFinishAddress(finishAddress)}
                       disabled={isLoading}
                       className="px-3 py-1 text-xs bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold cursor-pointer transition-colors"
                       title="Save and set this address as your home finish point"
@@ -825,17 +884,31 @@ export function RouteMapModal({
                     </button>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-500 leading-tight">
-                  {finishAddress.trim() ? (
-                    <>
-                      Stops are sequenced so the customer closest to <strong className="text-slate-700">{finishAddress}</strong> is visited last, leaving you on your doorstep when finished.
-                    </>
-                  ) : (
-                    <>
-                      Type your home address or postcode above (or tap <strong className="text-slate-700">Use GPS</strong>) so your route finishes right on your doorstep.
-                    </>
-                  )}
-                </p>
+
+                {/* Doorstep Proximity Metric Banner */}
+                {doorstepDistanceMiles !== undefined && orderedStops.length > 0 ? (
+                  <div className="bg-sky-500/10 border border-sky-300/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-sky-950">
+                    <span className="flex items-center gap-1.5 font-bold">
+                      <span className="text-sm">🏁</span>
+                      <span>Doorstep Finish:</span>
+                      <span className="font-semibold text-slate-700">
+                        Stop #{orderedStops.length} ({orderedStops[orderedStops.length - 1]?.customer.name}) is just {doorstepDistanceMiles} mi ({doorstepMinutes} min walk) from your home base!
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    {finishAddress.trim() ? (
+                      <>
+                        Stops are sequenced so the customer closest to <strong className="text-slate-700">{finishAddress}</strong> is visited last, leaving you on your doorstep when finished.
+                      </>
+                    ) : (
+                      <>
+                        Type your home address or postcode above (or tap <strong className="text-slate-700">Use GPS</strong>) so your route finishes right on your doorstep.
+                      </>
+                    )}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -970,8 +1043,13 @@ export function RouteMapModal({
                               £{stop.customer.price}
                             </span>
                             {isLastStop && finishAtHome && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-sky-100 text-sky-700 rounded-md shrink-0">
-                                🏁 Near Home
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md shrink-0 flex items-center gap-1 border border-sky-200">
+                                <span>🏁</span>
+                                <span>
+                                  {doorstepDistanceMiles !== undefined
+                                    ? `${doorstepDistanceMiles} mi to Home`
+                                    : 'Near Home'}
+                                </span>
                               </span>
                             )}
                           </div>
