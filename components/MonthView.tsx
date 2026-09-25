@@ -25,6 +25,7 @@ import {
   formatDateDisplay,
   getTodayDateString,
   extractStreetOrArea,
+  isCustomerScheduledOnDate,
   MonthDayInfo
 } from '@/lib/dateUtils';
 
@@ -58,20 +59,40 @@ export function MonthView({
 
   // Navigate months
   const handlePrevMonth = () => {
-    if (currentMonth === 1) {
-      setCurrentMonth(12);
-      setCurrentYear((y) => y - 1);
+    let newYear = currentYear;
+    let newMonth = currentMonth - 1;
+    if (newMonth === 0) {
+      newMonth = 12;
+      newYear -= 1;
+    }
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+
+    // Keep selectedDate in sync with the viewed month
+    const targetPrefix = `${newYear}-${String(newMonth).padStart(2, '0')}`;
+    if (todayStr.startsWith(targetPrefix)) {
+      setSelectedDate(todayStr);
     } else {
-      setCurrentMonth((m) => m - 1);
+      setSelectedDate(`${targetPrefix}-01`);
     }
   };
 
   const handleNextMonth = () => {
-    if (currentMonth === 12) {
-      setCurrentMonth(1);
-      setCurrentYear((y) => y + 1);
+    let newYear = currentYear;
+    let newMonth = currentMonth + 1;
+    if (newMonth === 13) {
+      newMonth = 1;
+      newYear += 1;
+    }
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+
+    // Keep selectedDate in sync with the viewed month
+    const targetPrefix = `${newYear}-${String(newMonth).padStart(2, '0')}`;
+    if (todayStr.startsWith(targetPrefix)) {
+      setSelectedDate(todayStr);
     } else {
-      setCurrentMonth((m) => m + 1);
+      setSelectedDate(`${targetPrefix}-01`);
     }
   };
 
@@ -86,34 +107,46 @@ export function MonthView({
     return getMonthMatrix(currentYear, currentMonth, todayStr);
   }, [currentYear, currentMonth, todayStr]);
 
-  // Map of dateString -> Customer[]
+  // Map of dateString -> Customer[] (projects forward across recurring cycles)
   const dateCustomerMap = useMemo(() => {
     const map = new Map<string, Customer[]>();
-    customers.forEach((c) => {
-      if (c.status === 'paused') return;
-      const d = c.nextDueDate;
-      if (!map.has(d)) map.set(d, []);
-      map.get(d)!.push(c);
-    });
-    return map;
-  }, [customers]);
+    const safeCustomers = (Array.isArray(customers) ? customers : []).filter(
+      (c) => c && c.status !== 'paused'
+    );
 
-  // Month summary stats
-  const monthStats = useMemo(() => {
-    const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    let totalCleans = 0;
-    let totalRevenue = 0;
+    matrix.forEach((dayInfo) => {
+      const dayStr = dayInfo.dateString;
+      const dayCusts: Customer[] = [];
 
-    customers.forEach((c) => {
-      if (c.status === 'paused') return;
-      if (c.nextDueDate.startsWith(monthPrefix)) {
-        totalCleans++;
-        totalRevenue += c.price;
+      for (let i = 0; i < safeCustomers.length; i++) {
+        const c = safeCustomers[i];
+        if (isCustomerScheduledOnDate(c, dayStr, todayStr)) {
+          dayCusts.push(c);
+        }
+      }
+
+      if (dayCusts.length > 0) {
+        map.set(dayStr, dayCusts);
       }
     });
 
+    return map;
+  }, [customers, matrix, todayStr]);
+
+  // Month summary stats (dynamically aggregates all cleans & revenue for the selected month)
+  const monthStats = useMemo(() => {
+    let totalCleans = 0;
+    let totalRevenue = 0;
+
+    matrix.forEach((dayInfo) => {
+      if (!dayInfo.isCurrentMonth) return;
+      const dayCusts = dateCustomerMap.get(dayInfo.dateString) || [];
+      totalCleans += dayCusts.length;
+      totalRevenue += dayCusts.reduce((sum, c) => sum + (Number(c.price) || 0), 0);
+    });
+
     return { totalCleans, totalRevenue };
-  }, [customers, currentYear, currentMonth]);
+  }, [matrix, dateCustomerMap]);
 
   // Customers for currently selected date
   const selectedDayCustomers = useMemo(() => {
@@ -457,6 +490,16 @@ export function MonthView({
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
                                 <Clock className="w-2.5 h-2.5" /> Unpaid
+                              </span>
+                            )}
+
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              Every {customer.frequencyWeeks || 4}w
+                            </span>
+
+                            {customer.nextDueDate !== selectedDate && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60">
+                                Cycle repeat
                               </span>
                             )}
                           </div>

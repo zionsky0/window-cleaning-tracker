@@ -274,3 +274,58 @@ export function extractStreetOrArea(address: string): string {
   // Fallback to second part or full first part
   return parts.length > 1 ? parts[1] : firstPart;
 }
+
+/**
+ * Determines whether a customer is due/scheduled on a specific date (including future recurring cycle occurrences).
+ */
+export function isCustomerScheduledOnDate(
+  customer: Customer,
+  dateString: string,
+  todayStr = getTodayDateString()
+): boolean {
+  if (!customer || customer.status === 'paused') return false;
+  if (!customer.nextDueDate) return false;
+
+  // Direct match to current nextDueDate
+  if (customer.nextDueDate === dateString) {
+    return true;
+  }
+
+  // Historic completion match: if cleaned on this exact date
+  if (customer.lastCleanedDate === dateString) {
+    return true;
+  }
+
+  // Future projected recurrence check:
+  // If target dateString is in the future relative to nextDueDate, check if it falls on the customer's frequency cadence
+  const diffDays = getDaysDifference(dateString, customer.nextDueDate);
+  if (diffDays > 0) {
+    const freqWeeks = customer.frequencyWeeks || 4;
+    const cycleDays = freqWeeks * 7;
+    if (cycleDays > 0 && diffDays % cycleDays === 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Returns upcoming projected dates for a customer within a given horizon (default 16 weeks / ~4 months)
+ */
+export function getProjectedDatesForCustomer(
+  customer: Customer,
+  horizonWeeks = 16
+): string[] {
+  if (!customer || customer.status === 'paused' || !customer.nextDueDate) return [];
+  const dates: string[] = [customer.nextDueDate];
+  const freqWeeks = customer.frequencyWeeks || 4;
+
+  let current = customer.nextDueDate;
+  for (let w = freqWeeks; w <= horizonWeeks; w += freqWeeks) {
+    current = addWeeksToDate(current, freqWeeks);
+    dates.push(current);
+  }
+  return dates;
+}
+

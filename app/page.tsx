@@ -9,6 +9,8 @@ import {
   getDaysDifference,
   addWeeksToDate,
   getCurrentWeekDates,
+  getMonthMatrix,
+  isCustomerScheduledOnDate,
 } from '@/lib/dateUtils';
 import {
   getLocalCustomers,
@@ -248,12 +250,21 @@ export default function HomePage() {
     updateCustomers(updated);
   };
 
-  // Month cleans count for month tab badge
+  // Month cleans count for month tab badge (counts all scheduled & recurring cleans this month)
   const monthCleansCount = useMemo(() => {
-    const currentMonthPrefix = todayStr.slice(0, 7);
-    return customers.filter(
-      (c) => c.status !== 'paused' && c.nextDueDate.startsWith(currentMonthPrefix)
-    ).length;
+    const [y, m] = todayStr.split('-').map(Number);
+    const matrix = getMonthMatrix(y, m, todayStr);
+    let count = 0;
+    const safe = customers.filter((c) => c && c.status !== 'paused');
+    matrix.forEach((d) => {
+      if (!d.isCurrentMonth) return;
+      safe.forEach((c) => {
+        if (isCustomerScheduledOnDate(c, d.dateString, todayStr)) {
+          count++;
+        }
+      });
+    });
+    return count;
   }, [customers, todayStr]);
 
   // Import customers from CSV
@@ -347,13 +358,15 @@ export default function HomePage() {
     });
   }, [customers, todayStr]);
 
-  // Customers scheduled for this week
+  // Customers scheduled for this week (including projected recurring cleans)
   const weekCustomers = useMemo(() => {
     const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
-    const weekSet = new Set(weekDates);
     return customers.filter((c) => {
-      if (c.status === 'paused') return false;
-      return weekSet.has(c.nextDueDate) || c.lastCleanedDate === todayStr;
+      if (!c || c.status === 'paused') return false;
+      return (
+        weekDates.some((wDate) => isCustomerScheduledOnDate(c, wDate, todayStr)) ||
+        c.lastCleanedDate === todayStr
+      );
     });
   }, [customers, todayStr]);
 
@@ -387,7 +400,6 @@ export default function HomePage() {
       cardAmount = 0;
 
     const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
-    const weekSet = new Set(weekDates);
 
     customers.forEach((c) => {
       if (c.status !== 'paused') {
@@ -422,7 +434,7 @@ export default function HomePage() {
         todayEstimatedEarnings += c.price;
       }
 
-      if (weekSet.has(c.nextDueDate)) {
+      if (weekDates.some((wDate) => isCustomerScheduledOnDate(c, wDate, todayStr))) {
         dueThisWeekCount++;
       }
     });
@@ -487,13 +499,12 @@ export default function HomePage() {
     } else if (currentTab === 'week') {
       if (selectedWeekDate) {
         filtered = filtered.filter(
-          (c) => c.status !== 'paused' && c.nextDueDate === selectedWeekDate
+          (c) => c && c.status !== 'paused' && isCustomerScheduledOnDate(c, selectedWeekDate, todayStr)
         );
       } else {
         const weekDates = getCurrentWeekDates(todayStr).map((d) => d.dateString);
-        const weekSet = new Set(weekDates);
         filtered = filtered.filter(
-          (c) => c.status !== 'paused' && weekSet.has(c.nextDueDate)
+          (c) => c && c.status !== 'paused' && weekDates.some((wDate) => isCustomerScheduledOnDate(c, wDate, todayStr))
         );
       }
       filtered.sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));

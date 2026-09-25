@@ -13,12 +13,23 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  Building2
+  Building2,
+  Clock,
+  Repeat,
+  Info,
+  CheckCircle2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Customer } from '@/lib/types';
 import { getTodayDateString } from '@/lib/dateUtils';
-import { clusterCustomersByProximity, DayCluster, CLUSTER_COLORS } from '@/lib/clusterPlanner';
+import {
+  clusterCustomersByProximity,
+  getFrequencySummary,
+  DayCluster,
+  CLUSTER_COLORS,
+  PlannerMode,
+  FrequencyGrouping
+} from '@/lib/clusterPlanner';
 
 interface SmartAreaPlannerModalProps {
   isOpen: boolean;
@@ -30,7 +41,7 @@ interface SmartAreaPlannerModalProps {
 export function SmartAreaPlannerModal({
   isOpen,
   onClose,
-  customers,
+  customers = [],
   onApplySchedule,
 }: SmartAreaPlannerModalProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -53,28 +64,43 @@ export function SmartAreaPlannerModal({
     return `${year}-${month}-${day}`;
   }, [todayStr]);
 
-  const [numberOfDays, setNumberOfDays] = useState<number>(() => {
-    const activeCount = customers.filter((c) => c.status !== 'paused').length;
-    if (activeCount <= 12) return 2;
-    if (activeCount <= 24) return 3;
-    if (activeCount <= 40) return 4;
-    return 5;
-  });
+  // Frequency summary
+  const freqSummary = useMemo(() => getFrequencySummary(customers), [customers]);
 
+  // Planner Mode: 4-week cycle is standard for UK window cleaning
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>('4week_cycle');
+  const [frequencyGrouping, setFrequencyGrouping] = useState<FrequencyGrouping>('harmonized');
+  const [frequencyFilter, setFrequencyFilter] = useState<number | 'all'>('all');
+
+  // Number of rounds / days
+  const [numberOfDays, setNumberOfDays] = useState<number>(4);
   const [startDateString, setStartDateString] = useState<string>(defaultStartDate);
   const [skipWeekends, setSkipWeekends] = useState(true);
   const [expandedDay, setExpandedDay] = useState<number | null>(0);
+  const [selectedRoundTab, setSelectedRoundTab] = useState<number | 'all'>('all');
   const [isApplying, setIsApplying] = useState(false);
 
   // Compute the geographic clusters
   const clusters = useMemo(() => {
     if (!isOpen) return [];
     return clusterCustomersByProximity(customers, {
+      plannerMode,
       numberOfDays,
       startDateString,
       skipWeekends,
+      frequencyGrouping,
+      frequencyFilter,
     });
-  }, [isOpen, customers, numberOfDays, startDateString, skipWeekends]);
+  }, [
+    isOpen,
+    customers,
+    plannerMode,
+    numberOfDays,
+    startDateString,
+    skipWeekends,
+    frequencyGrouping,
+    frequencyFilter,
+  ]);
 
   // Leaflet map initialization & rendering
   useEffect(() => {
@@ -149,7 +175,15 @@ export function SmartAreaPlannerModal({
         const bounds = L.latLngBounds([]);
 
         clusters.forEach((cluster, clIdx) => {
-          cluster.customers.forEach((cust, idx) => {
+          // If a round tab is active, filter pins
+          if (selectedRoundTab !== 'all' && selectedRoundTab !== clIdx) {
+            return;
+          }
+
+          const badgeLabel =
+            plannerMode === '4week_cycle' ? `W${cluster.weekNumber}` : `D${clIdx + 1}`;
+
+          cluster.customers.forEach((cust) => {
             if (!cust.lat || !cust.lng) return;
 
             const latLng: [number, number] = [cust.lat, cust.lng];
@@ -159,8 +193,8 @@ export function SmartAreaPlannerModal({
               <div style="
                 background-color: ${cluster.color};
                 color: white;
-                width: 26px;
-                height: 26px;
+                width: 28px;
+                height: 28px;
                 border-radius: 9999px;
                 display: flex;
                 align-items: center;
@@ -168,22 +202,22 @@ export function SmartAreaPlannerModal({
                 font-weight: 900;
                 font-size: 11px;
                 border: 2px solid white;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
               ">
-                D${clIdx + 1}
+                ${badgeLabel}
               </div>
             `;
 
             const icon = L.divIcon({
               html: pinHtml,
               className: 'custom-cluster-pin',
-              iconSize: [26, 26],
-              iconAnchor: [13, 13],
+              iconSize: [28, 28],
+              iconAnchor: [14, 14],
             });
 
             const marker = L.marker(latLng, { icon }).addTo(map);
             marker.bindPopup(`
-              <div style="font-family: inherit; padding: 4px 2px;">
+              <div style="font-family: inherit; padding: 4px 2px; min-width: 150px;">
                 <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${cust.name}</div>
                 <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${cust.address}</div>
                 <div style="margin-top: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
@@ -196,7 +230,7 @@ export function SmartAreaPlannerModal({
                     padding: 2px 6px;
                     border-radius: 6px;
                   ">
-                    Day ${clIdx + 1} (${cluster.dayName.split(' ')[0]})
+                    ${cluster.roundLabel} • Every ${cust.frequencyWeeks || 4}w
                   </span>
                 </div>
               </div>
@@ -205,7 +239,7 @@ export function SmartAreaPlannerModal({
         });
 
         if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [30, 30] });
+          map.fitBounds(bounds, { padding: [35, 35] });
         }
       } catch (err) {
         console.error('Failed to initialize clustering map:', err);
@@ -221,7 +255,7 @@ export function SmartAreaPlannerModal({
         leafletMapRef.current = null;
       }
     };
-  }, [isOpen, clusters]);
+  }, [isOpen, clusters, plannerMode, selectedRoundTab]);
 
   if (!isOpen) return null;
 
@@ -230,7 +264,7 @@ export function SmartAreaPlannerModal({
     setIsApplying(true);
 
     try {
-      // Map customer ID -> assigned nextDueDate
+      // Map customer ID -> assigned starting nextDueDate
       const dueDateMap = new Map<string, string>();
       clusters.forEach((cluster) => {
         cluster.customers.forEach((c) => {
@@ -246,8 +280,8 @@ export function SmartAreaPlannerModal({
       });
 
       confetti({
-        particleCount: 60,
-        spread: 70,
+        particleCount: 75,
+        spread: 75,
         origin: { y: 0.6 },
         colors: CLUSTER_COLORS,
       });
@@ -255,7 +289,7 @@ export function SmartAreaPlannerModal({
       onApplySchedule(updated);
       onClose();
     } catch (err) {
-      console.error('Failed to apply proximity schedule:', err);
+      console.error('Failed to apply schedule:', err);
     } finally {
       setIsApplying(false);
     }
@@ -263,6 +297,12 @@ export function SmartAreaPlannerModal({
 
   const totalActive = clusters.reduce((sum, cl) => sum + cl.customers.length, 0);
   const totalRevenue = clusters.reduce((sum, cl) => sum + cl.totalPrice, 0);
+
+  // Filtered clusters for the view
+  const visibleClusters =
+    selectedRoundTab === 'all'
+      ? clusters
+      : clusters.filter((_, idx) => idx === selectedRoundTab);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -275,10 +315,10 @@ export function SmartAreaPlannerModal({
             </div>
             <div>
               <h2 className="font-black text-base text-slate-900 dark:text-white leading-tight">
-                Smart Area & Proximity Auto-Planner
+                Smart Frequency & Area Round Planner
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Clean 1 compact neighborhood each day with zero zig-zagging
+                Organize 2-week, 4-week, and 8-week cleans into balanced neighborhood rounds
               </p>
             </div>
           </div>
@@ -291,86 +331,226 @@ export function SmartAreaPlannerModal({
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
-          {/* Controls Bar: Days & Start Date */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* Working Days Selector */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Split Round Across:
-                </label>
-                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                  {[2, 3, 4, 5].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setNumberOfDays(num)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                        numberOfDays === num
-                          ? 'bg-brand-600 text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                    >
-                      {num} Days
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Start Date Picker */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Starting Cycle Date:
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="date"
-                    value={startDateString}
-                    onChange={(e) => setStartDateString(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                  />
-                </div>
-              </div>
+        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+          {/* Frequency Breakdown Metric Strip */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3 flex items-center justify-between gap-2 flex-wrap text-xs">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-brand-600" />
+              <span className="font-extrabold text-slate-700 dark:text-slate-200">
+                Customer Cadence:
+              </span>
             </div>
 
-            {/* Skip weekends checkbox */}
-            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 pt-1">
-              <input
-                type="checkbox"
-                id="skipWeekends"
-                checked={skipWeekends}
-                onChange={(e) => setSkipWeekends(e.target.checked)}
-                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
-              />
-              <label htmlFor="skipWeekends" className="cursor-pointer font-medium">
-                Skip weekends (schedule workdays Monday to Friday only)
-              </label>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-extrabold text-[11px]">
+                2-Weekly: {freqSummary.freq2w}
+              </span>
+              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold text-[11px]">
+                4-Weekly: {freqSummary.freq4w}
+              </span>
+              {freqSummary.freq8w > 0 && (
+                <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[11px]">
+                  8-Weekly: {freqSummary.freq8w}
+                </span>
+              )}
+              <span className="text-slate-400 font-semibold text-[11px] ml-1">
+                ({freqSummary.totalActive} active total)
+              </span>
             </div>
           </div>
 
-          {/* Interactive Map of Geographic Clusters */}
-          <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner h-56 sm:h-64 bg-slate-100 dark:bg-slate-950">
-            <div ref={mapContainerRef} className="w-full h-full" />
-            <div className="absolute top-2.5 left-2.5 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-xs">
-              🗺️ Color-Coded Neighborhood Clusters
+          {/* Planning Mode & Configuration Card */}
+          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-3 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              {/* Mode Toggle */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Planning Cycle:
+                </label>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlannerMode('4week_cycle');
+                      setNumberOfDays(4);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      plannerMode === '4week_cycle'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    4-Week Round Cycle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlannerMode('daily_split');
+                      setNumberOfDays(3);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      plannerMode === 'daily_split'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Single Week Split
+                  </button>
+                </div>
+              </div>
+
+              {/* Number of Rounds / Days */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  {plannerMode === '4week_cycle' ? 'Rounds in Cycle:' : 'Split Across:'}
+                </label>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {plannerMode === '4week_cycle'
+                    ? [2, 3, 4, 6].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setNumberOfDays(num)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                            numberOfDays === num
+                              ? 'bg-brand-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          {num} {num === 4 ? 'Wks' : 'Rounds'}
+                        </button>
+                      ))
+                    : [2, 3, 4, 5].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setNumberOfDays(num)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                            numberOfDays === num
+                              ? 'bg-brand-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          {num} Days
+                        </button>
+                      ))}
+                </div>
+              </div>
             </div>
+
+            {/* Date and Frequency Options */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+              {/* Start Date */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Cycle Start:
+                </span>
+                <input
+                  type="date"
+                  value={startDateString}
+                  onChange={(e) => setStartDateString(e.target.value)}
+                  className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                />
+              </div>
+
+              {/* Frequency Filter */}
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="font-bold text-slate-500 dark:text-slate-400">Target:</span>
+                <select
+                  value={frequencyFilter}
+                  onChange={(e) =>
+                    setFrequencyFilter(
+                      e.target.value === 'all' ? 'all' : Number(e.target.value)
+                    )
+                  }
+                  className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-2 py-1 text-xs font-bold focus:outline-none"
+                >
+                  <option value="all">All Frequencies (Balanced)</option>
+                  <option value="4">4-Weekly Only</option>
+                  <option value="2">2-Weekly Only</option>
+                  <option value="8">8-Weekly Only</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Smart Harmonization Explainer */}
+            {plannerMode === '4week_cycle' && (
+              <div className="bg-sky-50 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-900/40 rounded-xl p-2.5 flex items-start gap-2 text-xs">
+                <Repeat className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                <p className="text-sky-900 dark:text-sky-300 text-[11px] leading-snug">
+                  <strong>Frequency Harmony Enabled:</strong> 4-weekly houses form your core area
+                  rounds. 2-weekly cleans are paired with their local neighbors in Week 1 or Week 2
+                  and automatically repeat 2 weeks later.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Interactive Map of Geographic Clusters */}
+          <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-inner h-52 sm:h-60 bg-slate-100 dark:bg-slate-950">
+            <div ref={mapContainerRef} className="w-full h-full" />
+            <div className="absolute top-2.5 left-2.5 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2.5 py-1 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-xs flex items-center gap-1.5">
+              <span>🗺️</span>
+              <span>
+                {plannerMode === '4week_cycle'
+                  ? 'Multi-Week Round Clusters'
+                  : 'Daily Geographic Clusters'}
+              </span>
+            </div>
+          </div>
+
+          {/* Round Selector Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setSelectedRoundTab('all')}
+              className={`px-3 py-1.5 rounded-xl font-black text-xs shrink-0 cursor-pointer transition-all ${
+                selectedRoundTab === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              All Rounds ({clusters.length})
+            </button>
+
+            {clusters.map((cl, idx) => (
+              <button
+                key={cl.dayIndex}
+                type="button"
+                onClick={() => setSelectedRoundTab(idx)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 flex items-center gap-1.5 cursor-pointer transition-all ${
+                  selectedRoundTab === idx
+                    ? 'text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                }`}
+                style={selectedRoundTab === idx ? { backgroundColor: cl.color } : {}}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: selectedRoundTab === idx ? 'white' : cl.color }}
+                />
+                <span>{cl.roundLabel}</span>
+                <span className="text-[10px] opacity-80">({cl.customers.length})</span>
+              </button>
+            ))}
           </div>
 
           {/* Clusters Breakdown List */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-xs px-1">
               <span className="font-extrabold uppercase text-slate-400">
-                Scheduled Daily Clusters ({clusters.length} Days)
+                {plannerMode === '4week_cycle'
+                  ? `Cycle Schedule (${clusters.length} Rounds)`
+                  : `Daily Rounds (${clusters.length} Days)`}
               </span>
-              <span className="font-extrabold text-slate-700 dark:text-slate-300">
+              <span className="font-black text-slate-800 dark:text-slate-200">
                 Total: {totalActive} cleans • £{totalRevenue}
               </span>
             </div>
 
             <div className="space-y-2">
-              {clusters.map((cluster, clIdx) => {
-                const isExpanded = expandedDay === clIdx;
+              {visibleClusters.map((cluster) => {
+                const isExpanded = expandedDay === cluster.dayIndex;
 
                 return (
                   <div
@@ -379,26 +559,35 @@ export function SmartAreaPlannerModal({
                   >
                     <button
                       type="button"
-                      onClick={() => setExpandedDay(isExpanded ? null : clIdx)}
+                      onClick={() => setExpandedDay(isExpanded ? null : cluster.dayIndex)}
                       className="w-full p-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {/* Day number badge */}
+                        {/* Round badge */}
                         <div
                           style={{ backgroundColor: cluster.color }}
-                          className="w-8 h-8 rounded-xl text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs"
+                          className="w-9 h-9 rounded-xl text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs"
                         >
-                          D{clIdx + 1}
+                          {plannerMode === '4week_cycle'
+                            ? `W${cluster.weekNumber}`
+                            : `D${cluster.dayIndex + 1}`}
                         </div>
 
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                              Day {clIdx + 1}: {cluster.dayName}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                              {cluster.roundLabel}: {cluster.dayName}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                               {cluster.customers.length} houses
                             </span>
+
+                            {/* Frequency breakdown pill */}
+                            {cluster.frequencyCounts.twoWeekly > 0 && (
+                              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">
+                                {cluster.frequencyCounts.twoWeekly} bi-weekly
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -419,9 +608,9 @@ export function SmartAreaPlannerModal({
                       </div>
                     </button>
 
-                    {/* Expanded customer list for this cluster */}
+                    {/* Expanded customer list for this round */}
                     {isExpanded && (
-                      <div className="p-3 pt-0 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/40 dark:bg-slate-900/40 space-y-1.5 max-h-48 overflow-y-auto">
+                      <div className="p-3 pt-0 border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/40 dark:bg-slate-900/40 space-y-1.5 max-h-52 overflow-y-auto">
                         {cluster.customers.map((c, stopNum) => (
                           <div
                             key={c.id}
@@ -432,9 +621,14 @@ export function SmartAreaPlannerModal({
                                 {stopNum + 1}
                               </span>
                               <div className="min-w-0">
-                                <span className="font-bold text-slate-900 dark:text-white block truncate">
-                                  {c.name}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 dark:text-white truncate">
+                                    {c.name}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                                    Every {c.frequencyWeeks || 4}w
+                                  </span>
+                                </div>
                                 <span className="text-[11px] text-slate-400 block truncate">
                                   {c.address}
                                 </span>
@@ -471,7 +665,10 @@ export function SmartAreaPlannerModal({
             className="flex-1 py-2.5 px-4 bg-linear-to-r from-brand-600 via-indigo-600 to-brand-600 hover:from-brand-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Apply Proximity Schedule ({clusters.length} Days)</span>
+            <span>
+              Apply {plannerMode === '4week_cycle' ? '4-Week Cycle' : 'Proximity'} Schedule (
+              {clusters.length} Rounds)
+            </span>
           </button>
         </div>
       </div>

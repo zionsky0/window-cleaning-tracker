@@ -3,7 +3,7 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
 import { Customer } from '@/lib/types';
-import { getCurrentWeekDates } from '@/lib/dateUtils';
+import { getCurrentWeekDates, isCustomerScheduledOnDate } from '@/lib/dateUtils';
 
 interface WeeklyCalendarProps {
   customers: Customer[];
@@ -20,8 +20,8 @@ export function WeeklyCalendar({
 
   // Aggregate stats per day of the week
   const dayStats = weekDays.map((day) => {
-    const dayCustomers = customers.filter(
-      (c) => c.status !== 'paused' && c.nextDueDate === day.dateString
+    const dayCustomers = (customers || []).filter(
+      (c) => c && c.status !== 'paused' && isCustomerScheduledOnDate(c, day.dateString)
     );
     const count = dayCustomers.length;
     const totalEarnings = dayCustomers.reduce((acc, c) => acc + (c.price || 0), 0);
