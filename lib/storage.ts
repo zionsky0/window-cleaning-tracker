@@ -94,7 +94,7 @@ export function setLocalActiveRoute(route: ActiveRouteState | null): void {
   }
 }
 
-export function getLocalStartLocation(): { address: string; lat?: number; lng?: number } | null {
+export function getLocalStartLocation(): { address?: string; lat?: number; lng?: number } | null {
   if (typeof window === 'undefined') return null;
   try {
     const data = localStorage.getItem(STORAGE_KEY_START_LOCATION);
@@ -105,7 +105,7 @@ export function getLocalStartLocation(): { address: string; lat?: number; lng?: 
   return null;
 }
 
-export function setLocalStartLocation(loc: { address: string; lat?: number; lng?: number } | null): void {
+export function setLocalStartLocation(loc: { address?: string; lat?: number; lng?: number } | null): void {
   if (typeof window === 'undefined') return;
   try {
     if (loc) {
@@ -138,7 +138,7 @@ export function setLocalNavApp(app: NavApp): void {
   }
 }
 
-export function getLocalFinishLocation(): { address: string; lat?: number; lng?: number } | null {
+export function getLocalFinishLocation(): { address?: string; lat?: number; lng?: number } | null {
   if (typeof window === 'undefined') return null;
   try {
     const data = localStorage.getItem(STORAGE_KEY_FINISH_LOCATION);
@@ -154,7 +154,7 @@ export function getLocalFinishLocation(): { address: string; lat?: number; lng?:
   return null;
 }
 
-export function setLocalFinishLocation(loc: { address: string; lat?: number; lng?: number } | null): void {
+export function setLocalFinishLocation(loc: { address?: string; lat?: number; lng?: number } | null): void {
   if (typeof window === 'undefined') return;
   try {
     if (loc) {

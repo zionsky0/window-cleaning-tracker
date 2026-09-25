@@ -19,7 +19,8 @@ import {
   Banknote,
   CreditCard,
   ArrowUpDown,
-  Filter
+  Filter,
+  Compass,
 } from 'lucide-react';
 import { Customer, PaymentStatus, FrequencyWeeks } from '@/lib/types';
 import { formatDateDisplay, getTodayDateString, extractStreetOrArea } from '@/lib/dateUtils';
@@ -41,7 +42,7 @@ type SortField = 'name' | 'address' | 'price' | 'nextDue';
 type FilterStatus = 'all' | 'active' | 'paused';
 
 export function CustomerDirectoryView({
-  customers,
+  customers = [],
   onOpenAddCustomer,
   onOpenCustomerMap,
   onOpenAreaPlanner,
@@ -58,15 +59,21 @@ export function CustomerDirectoryView({
   const [sortBy, setSortBy] = useState<SortField>('name');
   const todayStr = getTodayDateString();
 
+  // Defensive list
+  const safeCustomers = useMemo(() => (Array.isArray(customers) ? customers.filter(Boolean) : []), [customers]);
+
   // Metrics
-  const activeCount = useMemo(() => customers.filter((c) => c.status !== 'paused').length, [customers]);
-  const pausedCount = customers.length - activeCount;
+  const activeCount = useMemo(
+    () => safeCustomers.filter((c) => c.status !== 'paused').length,
+    [safeCustomers]
+  );
+  const pausedCount = safeCustomers.length - activeCount;
 
   const totalCycleValue = useMemo(() => {
-    return customers
+    return safeCustomers
       .filter((c) => c.status !== 'paused')
-      .reduce((sum, c) => sum + c.price, 0);
-  }, [customers]);
+      .reduce((sum, c) => sum + (Number(c.price) || 0), 0);
+  }, [safeCustomers]);
 
   const avgPrice = useMemo(() => {
     if (activeCount === 0) return 0;
@@ -75,18 +82,19 @@ export function CustomerDirectoryView({
 
   // Filtering & Sorting
   const processedCustomers = useMemo(() => {
-    let list = [...customers];
+    let list = [...safeCustomers];
 
     // Search query
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          (c.notes && c.notes.toLowerCase().includes(q))
-      );
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((c) => {
+        if (!c) return false;
+        const name = (c.name || '').toLowerCase();
+        const address = (c.address || '').toLowerCase();
+        const phone = (c.phone || '').toLowerCase();
+        const notes = (c.notes || '').toLowerCase();
+        return name.includes(q) || address.includes(q) || phone.includes(q) || notes.includes(q);
+      });
     }
 
     // Status filter
@@ -98,25 +106,26 @@ export function CustomerDirectoryView({
 
     // Frequency filter
     if (freqFilter !== 'all') {
-      list = list.filter((c) => c.frequencyWeeks === freqFilter);
+      list = list.filter((c) => (c.frequencyWeeks || 4) === freqFilter);
     }
 
     // Sorting
     list.sort((a, b) => {
+      if (!a || !b) return 0;
       if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       } else if (sortBy === 'address') {
-        return a.address.localeCompare(b.address);
+        return (a.address || '').localeCompare(b.address || '');
       } else if (sortBy === 'price') {
-        return b.price - a.price;
+        return (Number(b.price) || 0) - (Number(a.price) || 0);
       } else if (sortBy === 'nextDue') {
-        return a.nextDueDate.localeCompare(b.nextDueDate);
+        return (a.nextDueDate || '').localeCompare(b.nextDueDate || '');
       }
       return 0;
     });
 
     return list;
-  }, [customers, searchQuery, statusFilter, freqFilter, sortBy]);
+  }, [safeCustomers, searchQuery, statusFilter, freqFilter, sortBy]);
 
   return (
     <div className="space-y-3">
@@ -249,7 +258,7 @@ export function CustomerDirectoryView({
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
               }`}
             >
-              All ({customers.length})
+              All ({safeCustomers.length})
             </button>
             <button
               onClick={() => setStatusFilter('active')}
@@ -303,13 +312,13 @@ export function CustomerDirectoryView({
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
               {searchQuery
                 ? `No customers matched "${searchQuery}".`
-                : 'Tap Add Customer to record your first client.'}
+                : 'Tap Add to record your first customer.'}
             </p>
           </div>
         </div>
       ) : (
         processedCustomers.map((customer) => {
-          const isDoneToday = customer.lastCleanedDate === todayStr;
+          const isDoneToday = Boolean(customer.lastCleanedDate && customer.lastCleanedDate === todayStr);
           const pStatus: PaymentStatus = customer.paymentStatus || 'unpaid';
           const isPaused = customer.status === 'paused';
 
@@ -327,7 +336,7 @@ export function CustomerDirectoryView({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <h3 className="font-extrabold text-base text-slate-900 dark:text-white truncate">
-                      {customer.name}
+                      {customer.name || 'Unnamed Customer'}
                     </h3>
 
                     {isPaused ? (
@@ -341,22 +350,29 @@ export function CustomerDirectoryView({
                     )}
 
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      Every {customer.frequencyWeeks}w
+                      Every {customer.frequencyWeeks || 4}w
                     </span>
                   </div>
 
                   {/* Address */}
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                      customer.address
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-brand-600"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{customer.address}</span>
-                  </a>
+                  {customer.address ? (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        customer.address
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-brand-600"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{customer.address}</span>
+                    </a>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>No address set</span>
+                    </div>
+                  )}
 
                   {/* Phone */}
                   {customer.phone && (
@@ -378,11 +394,11 @@ export function CustomerDirectoryView({
                   <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Last: {formatDateDisplay(customer.lastCleanedDate)}
+                      Last: {customer.lastCleanedDate ? formatDateDisplay(customer.lastCleanedDate) : 'Never'}
                     </span>
                     <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
                       <Calendar className="w-3 h-3" />
-                      Next: {formatDateDisplay(customer.nextDueDate)}
+                      Next: {customer.nextDueDate ? formatDateDisplay(customer.nextDueDate) : 'Not scheduled'}
                     </span>
                   </div>
                 </div>
@@ -390,7 +406,7 @@ export function CustomerDirectoryView({
                 {/* Price */}
                 <div className="text-right shrink-0">
                   <span className="text-xl font-black text-slate-900 dark:text-white block leading-tight">
-                    £{customer.price}
+                    £{Number(customer.price) || 0}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400 block">
                     Per clean
@@ -462,7 +478,7 @@ export function CustomerDirectoryView({
                   {customer.phone ? (
                     <a
                       href={`tel:${customer.phone}`}
-                      title={`Call ${customer.name}`}
+                      title={`Call ${customer.name || 'customer'}`}
                       className="p-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -471,6 +487,7 @@ export function CustomerDirectoryView({
 
                   {/* On My Way */}
                   <button
+                    type="button"
                     onClick={() => onOpenOnMyWay(customer)}
                     title="Send On My Way message"
                     className="p-2 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 hover:bg-brand-100 rounded-xl transition-colors cursor-pointer"
@@ -480,6 +497,7 @@ export function CustomerDirectoryView({
 
                   {/* Toggle Active / Paused */}
                   <button
+                    type="button"
                     onClick={() => onTogglePauseCustomer(customer)}
                     title={isPaused ? 'Resume round' : 'Pause round'}
                     className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition-colors cursor-pointer"
@@ -495,6 +513,7 @@ export function CustomerDirectoryView({
                 <div className="flex items-center gap-1.5">
                   {/* Mark complete toggle */}
                   <button
+                    type="button"
                     onClick={() => onMarkComplete(customer)}
                     disabled={isCompletingId === customer.id}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -513,6 +532,7 @@ export function CustomerDirectoryView({
 
                   {/* Edit Customer */}
                   <button
+                    type="button"
                     onClick={() => onEditCustomer(customer)}
                     className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition-colors cursor-pointer"
                     title="Edit customer details"

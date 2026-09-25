@@ -9,6 +9,8 @@ export interface GeoLocation {
   address?: string;
 }
 
+export type LocationInput = GeoLocation | { address: string; lat?: number; lng?: number };
+
 export interface RouteOptimizationResult {
   orderedCustomers: Customer[];
   routeStops: RouteStop[];
@@ -24,7 +26,7 @@ export interface RouteOptimizationResult {
 
 export interface OptimizeTradeRouteOptions {
   travelMode?: TravelMode;
-  finishPoint?: GeoLocation;
+  finishPoint?: LocationInput;
 }
 
 export interface StreetCluster {
@@ -135,10 +137,15 @@ export function estimateTravelMinutes(miles: number, travelMode: TravelMode = 'w
 /**
  * Resolves coordinates for a single location using internal /api/geocode or postcodes.io
  */
-async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | undefined> {
-  if (!loc || !loc.address) return loc;
+async function resolveSingleLocation(loc?: LocationInput): Promise<GeoLocation | undefined> {
+  if (!loc || !loc.address) {
+    if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number' && Number.isFinite(loc.lat) && Number.isFinite(loc.lng) && Math.abs(loc.lat) > 0.1) {
+      return { lat: loc.lat, lng: loc.lng, address: loc.address };
+    }
+    return undefined;
+  }
   if (loc.lat && loc.lng && Number.isFinite(loc.lat) && Number.isFinite(loc.lng) && Math.abs(loc.lat) > 0.1) {
-    return loc;
+    return { lat: loc.lat, lng: loc.lng, address: loc.address };
   }
 
   // 1. Try internal /api/geocode route if running in browser
@@ -148,7 +155,7 @@ async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | u
       if (res.ok) {
         const data = await res.json();
         if (data.lat && data.lng) {
-          return { ...loc, lat: data.lat, lng: data.lng };
+          return { lat: data.lat, lng: data.lng, address: loc.address };
         }
       }
     } catch (e) {
@@ -165,7 +172,7 @@ async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | u
       if (res.ok) {
         const data = await res.json();
         if (data?.result?.latitude && data?.result?.longitude) {
-          return { ...loc, lat: data.result.latitude, lng: data.result.longitude };
+          return { lat: data.result.latitude, lng: data.result.longitude, address: loc.address };
         }
       }
     } catch (e) {
@@ -185,9 +192,9 @@ async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | u
       const nomData = await nomRes.json();
       if (Array.isArray(nomData) && nomData.length > 0 && nomData[0].lat && nomData[0].lon) {
         return {
-          ...loc,
           lat: parseFloat(nomData[0].lat),
           lng: parseFloat(nomData[0].lon),
+          address: loc.address,
         };
       }
     }
@@ -195,7 +202,7 @@ async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | u
     // ignore
   }
 
-  return loc;
+  return undefined;
 }
 
 /**
@@ -203,8 +210,8 @@ async function resolveSingleLocation(loc?: GeoLocation): Promise<GeoLocation | u
  */
 export async function geocodeCustomers(
   customers: Customer[],
-  startLoc?: GeoLocation,
-  finishLoc?: GeoLocation
+  startLoc?: LocationInput,
+  finishLoc?: LocationInput
 ): Promise<{
   updatedCustomers: Customer[];
   startLocResolved?: GeoLocation;
@@ -602,7 +609,7 @@ export function solveOptimalTour(
  */
 export async function optimizeTradeRoute(
   customers: Customer[],
-  startPoint?: GeoLocation,
+  startPoint?: LocationInput,
   options?: OptimizeTradeRouteOptions
 ): Promise<RouteOptimizationResult> {
   const travelMode: TravelMode = options?.travelMode || 'walking';
@@ -616,7 +623,7 @@ export async function optimizeTradeRoute(
       totalDurationMinutes: 0,
       usedRoadNetwork: false,
       travelMode,
-      finishPoint: rawFinish,
+      finishPoint: undefined,
     };
   }
 
@@ -878,7 +885,7 @@ export async function optimizeTradeRoute(
       totalDurationMinutes: fallbackStops.reduce((sum, s) => sum + (s.travelMinutesFromPrev || 2), 0),
       usedRoadNetwork: false,
       travelMode,
-      finishPoint: rawFinish,
+      finishPoint: rawFinish?.lat && rawFinish?.lng ? { lat: rawFinish.lat, lng: rawFinish.lng, address: rawFinish.address } : undefined,
     };
   }
 }

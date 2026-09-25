@@ -25,6 +25,7 @@ import {
   getMultiStopGoogleMapsUrl,
   estimateTravelMinutes,
   GeoLocation,
+  LocationInput,
 } from '@/lib/routeOptimizer';
 import {
   getLocalStartLocation,
@@ -83,11 +84,11 @@ export function RouteMapModal({
 
   // Start Location state
   const [startAddress, setStartAddress] = useState('');
-  const [startCoords, setStartCoords] = useState<GeoLocation | undefined>(undefined);
+  const [startCoords, setStartCoords] = useState<LocationInput | undefined>(undefined);
 
   // Finish Location state (user customizable)
   const [finishAddress, setFinishAddress] = useState('');
-  const [finishCoords, setFinishCoords] = useState<GeoLocation | undefined>(undefined);
+  const [finishCoords, setFinishCoords] = useState<LocationInput | undefined>(undefined);
   const [finishAtHome, setFinishAtHome] = useState(false);
 
   const [selectedNavApp, setSelectedNavApp] = useState<NavApp>('google');
@@ -104,9 +105,9 @@ export function RouteMapModal({
   // Run Route Optimization for the active pool
   const runOptimization = async (
     targets: Customer[],
-    overrideStart?: GeoLocation | null,
+    overrideStart?: LocationInput | null,
     overrideMode?: TravelMode,
-    overrideFinish?: GeoLocation | null
+    overrideFinish?: LocationInput | null
   ) => {
     if (!targets || targets.length === 0) {
       setOrderedStops([]);
@@ -123,13 +124,13 @@ export function RouteMapModal({
     setStatusNotice(null);
 
     const activeMode = overrideMode || travelMode;
-    const activeStart =
+    const activeStart: LocationInput | undefined =
       overrideStart !== undefined
         ? overrideStart || undefined
         : (startCoords?.lat && startCoords?.lng ? startCoords : undefined) ||
           (startAddress.trim() ? { address: startAddress.trim() } : undefined);
 
-    let activeFinish: GeoLocation | undefined = undefined;
+    let activeFinish: LocationInput | undefined = undefined;
     if (overrideFinish !== undefined) {
       activeFinish = overrideFinish || undefined;
     } else if (finishAtHome && finishAddress.trim()) {
@@ -172,7 +173,7 @@ export function RouteMapModal({
         };
       });
       setOrderedStops(fallbackStops);
-      setTotalMiles(Math.round(fallbackStops.reduce((sum, s) => sum + s.distanceFromPrevMiles, 0) * 10) / 10);
+      setTotalMiles(Math.round(fallbackStops.reduce((sum, s) => sum + (s.distanceFromPrevMiles || 0), 0) * 10) / 10);
       setTotalMinutes(fallbackStops.reduce((sum, s) => sum + (s.travelMinutesFromPrev || 2), 0));
     } finally {
       setIsLoading(false);
@@ -201,7 +202,7 @@ export function RouteMapModal({
     setScope(targetScope);
 
     const savedLoc = getLocalStartLocation();
-    let initialStart: GeoLocation | undefined = undefined;
+    let initialStart: LocationInput | undefined = undefined;
     if (savedLoc && savedLoc.address) {
       setStartAddress(savedLoc.address);
       if (savedLoc.lat && savedLoc.lng) {
@@ -213,7 +214,7 @@ export function RouteMapModal({
     }
 
     const savedFinish = getLocalFinishLocation();
-    let initialFinish: GeoLocation | undefined = undefined;
+    let initialFinish: LocationInput | undefined = undefined;
     if (savedFinish && savedFinish.address && savedFinish.address.trim()) {
       setFinishAddress(savedFinish.address);
       setFinishAtHome(true);
@@ -284,7 +285,7 @@ export function RouteMapModal({
     }
 
     setIsLoading(true);
-    let resolved: GeoLocation = { address: trimmed };
+    let resolved: LocationInput = { address: trimmed };
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`);
       if (res.ok) {
@@ -343,7 +344,7 @@ export function RouteMapModal({
     setFinishAtHome(true);
     setIsLoading(true);
 
-    let resolved: GeoLocation = { address: trimmed };
+    let resolved: LocationInput = { address: trimmed };
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`);
       if (res.ok) {

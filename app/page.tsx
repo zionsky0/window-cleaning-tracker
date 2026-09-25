@@ -230,7 +230,7 @@ export default function HomePage() {
 
   // Toggle customer paused/active status
   const handleTogglePauseCustomer = (customer: Customer) => {
-    const newStatus = customer.status === 'paused' ? 'active' : 'paused';
+    const newStatus: 'active' | 'paused' = customer.status === 'paused' ? 'active' : 'paused';
     const updated = customers.map((c) => (c.id === customer.id ? { ...c, status: newStatus } : c));
     updateCustomers(updated);
   };
