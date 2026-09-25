@@ -88,31 +88,7 @@ export function Header({
         </div>
       </div>
 
-      {/* Sync Status Banner */}
-      <div className="px-4 py-1.5 bg-slate-50 dark:bg-slate-950/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs transition-colors duration-200">
-        <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5">
-          {currentUser ? (
-            <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Backed up to Cloud ({currentUser.identifier})</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />
-              <span>Saved locally on phone</span>
-              <button
-                onClick={onOpenSync}
-                className="text-brand-600 dark:text-brand-400 font-bold hover:underline ml-1 cursor-pointer"
-              >
-                Enable Cloud Sync →
-              </button>
-            </span>
-          )}
-        </span>
-        <span className="text-slate-400 dark:text-slate-500 font-semibold text-[11px]">
-          {stats.totalActiveCount} rounds
-        </span>
-      </div>
+
 
       {/* Daily Round Summary Cards (Shown on Today/Route tab) */}
       {showSummaryCards && (

@@ -27,6 +27,8 @@ import { formatDateDisplay, getTodayDateString, extractStreetOrArea } from '@/li
 interface CustomerDirectoryViewProps {
   customers: Customer[];
   onOpenAddCustomer: () => void;
+  onOpenCustomerMap: () => void;
+  onOpenAreaPlanner: () => void;
   onOpenOnMyWay: (customer: Customer) => void;
   onMarkComplete: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
@@ -41,6 +43,8 @@ type FilterStatus = 'all' | 'active' | 'paused';
 export function CustomerDirectoryView({
   customers,
   onOpenAddCustomer,
+  onOpenCustomerMap,
+  onOpenAreaPlanner,
   onOpenOnMyWay,
   onMarkComplete,
   onEditCustomer,
@@ -118,9 +122,9 @@ export function CustomerDirectoryView({
     <div className="space-y-3">
       {/* Portfolio Overview Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs transition-colors duration-200">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
               <Users className="w-5 h-5" />
             </div>
             <div>
@@ -134,13 +138,39 @@ export function CustomerDirectoryView({
             </div>
           </div>
 
-          <button
-            onClick={onOpenAddCustomer}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Add Customer</span>
-          </button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* View on Map Button */}
+            <button
+              type="button"
+              onClick={onOpenCustomerMap}
+              className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
+              title="See where all customers are on a map"
+            >
+              <MapPin className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Map</span>
+            </button>
+
+            {/* Auto-Plan by Proximity Button */}
+            <button
+              type="button"
+              onClick={onOpenAreaPlanner}
+              className="flex items-center gap-1.5 bg-linear-to-r from-indigo-600 to-brand-600 hover:from-indigo-700 hover:to-brand-700 text-white font-extrabold text-xs px-3 py-2 rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
+              title="Auto-plan rounds by area proximity"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Auto-Plan Areas</span>
+            </button>
+
+            {/* Add Customer Button */}
+            <button
+              type="button"
+              onClick={onOpenAddCustomer}
+              className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs px-3 py-2 rounded-xl shadow-xs active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Add</span>
+            </button>
+          </div>
         </div>
 
         {/* Financial metrics */}
@@ -157,6 +187,31 @@ export function CustomerDirectoryView({
               £{avgPrice} <span className="text-[11px] font-semibold text-slate-400">/ house</span>
             </span>
           </div>
+        </div>
+
+        {/* Smart Proximity Clustering Feature Banner */}
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-linear-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-indigo-950/40 p-3 rounded-xl border border-sky-100 dark:border-indigo-900/40">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-indigo-600 to-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Compass className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                Smart Proximity Auto-Planner
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Group close-by customers into compact daily areas (Day 1, Day 2, Day 3)
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenAreaPlanner}
+            className="shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Plan Areas
+          </button>
         </div>
       </div>
 

@@ -50,6 +50,7 @@ interface RouteMapModalProps {
     options?: { travelMode?: TravelMode; finishAddress?: string }
   ) => void;
   onMarkComplete?: (customer: Customer) => void;
+  initialScope?: RouteScope;
 }
 
 export function RouteMapModal({
@@ -61,6 +62,7 @@ export function RouteMapModal({
   onApplyRouteOrder,
   onStartRouteRunner,
   onMarkComplete,
+  initialScope,
 }: RouteMapModalProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
@@ -183,7 +185,10 @@ export function RouteMapModal({
 
     let targetScope: RouteScope = 'today';
     let pool = todayCustomers;
-    if (todayCustomers.length > 0) {
+    if (initialScope) {
+      targetScope = initialScope;
+      pool = initialScope === 'today' ? todayCustomers : initialScope === 'week' ? weekCustomers : allCustomers;
+    } else if (todayCustomers.length > 0) {
       targetScope = 'today';
       pool = todayCustomers;
     } else if (weekCustomers.length > 0) {

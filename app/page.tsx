@@ -36,6 +36,7 @@ import { MonthView } from '@/components/MonthView';
 import { UnpaidView } from '@/components/UnpaidView';
 import { CustomerDirectoryView } from '@/components/CustomerDirectoryView';
 import { MoreSettingsView } from '@/components/MoreSettingsView';
+import { SmartAreaPlannerModal } from '@/components/SmartAreaPlannerModal';
 
 export default function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -51,6 +52,8 @@ export default function HomePage() {
   // Active Route Runner State
   const [activeRoute, setActiveRoute] = useState<ActiveRouteState | null>(null);
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
+  const [routeModalScope, setRouteModalScope] = useState<'today' | 'week' | 'all'>('today');
+  const [isAreaPlannerOpen, setIsAreaPlannerOpen] = useState(false);
   const [navApp, setNavApp] = useState<NavApp>('google');
 
   // Modals
@@ -573,7 +576,10 @@ export default function HomePage() {
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={() => setIsRouteModalOpen(true)}
+                    onClick={() => {
+                      setRouteModalScope('today');
+                      setIsRouteModalOpen(true);
+                    }}
                     className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <MapPin className="w-3.5 h-3.5" />
@@ -682,6 +688,11 @@ export default function HomePage() {
           <CustomerDirectoryView
             customers={customers}
             onOpenAddCustomer={() => setIsAddModalOpen(true)}
+            onOpenCustomerMap={() => {
+              setRouteModalScope('all');
+              setIsRouteModalOpen(true);
+            }}
+            onOpenAreaPlanner={() => setIsAreaPlannerOpen(true)}
             onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
             onMarkComplete={handleMarkComplete}
             onEditCustomer={(c) => setEditingCustomer(c)}
@@ -761,6 +772,13 @@ export default function HomePage() {
         }}
         onStartRouteRunner={handleStartRouteRunner}
         onMarkComplete={handleMarkComplete}
+        initialScope={routeModalScope}
+      />
+      <SmartAreaPlannerModal
+        isOpen={isAreaPlannerOpen}
+        onClose={() => setIsAreaPlannerOpen(false)}
+        customers={customers}
+        onApplySchedule={(updated) => updateCustomers(updated)}
       />
       <OnMyWayModal
         customer={onMyWayCustomer}
