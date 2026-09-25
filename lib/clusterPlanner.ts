@@ -5,9 +5,6 @@ import {
 } from './routeOptimizer';
 import { extractStreetOrArea, addWeeksToDate } from './dateUtils';
 
-export type PlannerMode = '4week_cycle' | 'daily_split';
-export type FrequencyGrouping = 'harmonized' | 'by_frequency';
-
 export interface FrequencySummary {
   totalActive: number;
   freq2w: number;
@@ -19,10 +16,11 @@ export interface FrequencySummary {
 
 export interface DayCluster {
   dayIndex: number; // 0, 1, 2...
-  weekNumber: number; // 1, 2, 3, 4
-  roundLabel: string; // e.g. "Week 1" or "Day 1"
-  dateString: string;
-  dayName: string;
+  dateString: string; // e.g. "2026-10-01"
+  dayName: string; // e.g. "Thursday 1 Oct"
+  weekdayName: string; // e.g. "Thursday"
+  badgeLabel: string; // e.g. "MON", "TUE", "WED", "THU", "FRI"
+  roundLabel: string; // e.g. "Mon 28 Sep"
   clusterName: string;
   customers: Customer[];
   totalPrice: number;
@@ -47,7 +45,12 @@ export const CLUSTER_COLORS = [
   '#06b6d4', // Cyan
   '#84cc16', // Lime
   '#6366f1', // Indigo
+  '#d97706', // Warm Amber
+  '#0d9488', // Teal
 ];
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 /**
  * Calculates a summary of customer frequencies across an active customer set.
@@ -81,10 +84,9 @@ export function getFrequencySummary(customers: Customer[]): FrequencySummary {
 }
 
 /**
- * Calculates approximate geographic distance between two customers.
- * Uses exact GPS coordinates if available, otherwise heuristics based on street & postcode.
+ * Calculates approximate geographic distance between two customers in miles.
  */
-function getCustomerDistanceMiles(c1: Customer, c2: Customer): number {
+export function getCustomerDistanceMiles(c1: Customer, c2: Customer): number {
   if (c1.id === c2.id) return 0;
 
   const hasCoords1 = Boolean(c1.lat && c1.lng && c1.lat !== 0 && c1.lng !== 0);
@@ -98,7 +100,7 @@ function getCustomerDistanceMiles(c1: Customer, c2: Customer): number {
   const street1 = extractStreetOrArea(c1.address).toLowerCase();
   const street2 = extractStreetOrArea(c2.address).toLowerCase();
   if (street1 && street2 && street1 === street2) {
-    return 0.05; // Same street!
+    return 0.05; // Exact same street!
   }
 
   const pc1 = extractPostcode(c1.address);
@@ -107,23 +109,56 @@ function getCustomerDistanceMiles(c1: Customer, c2: Customer): number {
     if (pc1 === pc2) return 0.15; // Same exact postcode unit
     const out1 = pc1.split(' ')[0];
     const out2 = pc2.split(' ')[0];
-    if (out1 === out2) return 0.75; // Same outward postcode district
+    if (out1 === out2) return 0.75; // Same outward district
   }
 
   return 3.0; // Different area
 }
 
+/**
+ * Generates an array of real working dates across the cleaner's selected days of the week.
+ */
+export function getWorkingDatesSequence(
+  startDateString: string,
+  count: number,
+  workingDays: number[] = [1, 2, 3, 4, 5] // Default: Monday to Friday
+): string[] {
+  const [startY, startM, startD] = startDateString.split('-').map(Number);
+  const curDate = new Date(startY, startM - 1, startD);
+  const dates: string[] = [];
+
+  // If start date is not a working day, advance to the first working day
+  let safety = 0;
+  while (!workingDays.includes(curDate.getDay()) && safety < 14) {
+    curDate.setDate(curDate.getDate() + 1);
+    safety++;
+  }
+
+  safety = 0;
+  while (dates.length < count && safety < 100) {
+    if (workingDays.includes(curDate.getDay())) {
+      const y = curDate.getFullYear();
+      const m = String(curDate.getMonth() + 1).padStart(2, '0');
+      const d = String(curDate.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+    }
+    curDate.setDate(curDate.getDate() + 1);
+    safety++;
+  }
+
+  return dates;
+}
+
 export interface ClusterOptions {
-  plannerMode?: PlannerMode; // '4week_cycle' (default) or 'daily_split'
-  numberOfDays?: number; // 2 to 5 days in a week (for daily_split) or total rounds (2 to 8)
   startDateString: string;
-  skipWeekends?: boolean;
-  frequencyGrouping?: FrequencyGrouping; // 'harmonized' (default) or 'by_frequency'
+  numberOfRounds?: number; // e.g. 5 days, 8 days, 10 days
+  workingDays?: number[]; // e.g. [1, 2, 3, 4, 5] for Mon-Fri
   frequencyFilter?: number | 'all';
 }
 
 /**
- * Automatically groups active customers into geographic proximity clusters and frequency-aware rounds.
+ * Automatically groups active customers into geographic proximity clusters and assigns
+ * each cluster to a distinct working day of the week (e.g. Monday, Tuesday, Wednesday...).
  */
 export function clusterCustomersByProximity(
   customers: Customer[],
@@ -139,196 +174,150 @@ export function clusterCustomersByProximity(
     if (active.length === 0) return [];
   }
 
-  const mode = options.plannerMode || '4week_cycle';
-  const frequencyGrouping = options.frequencyGrouping || 'harmonized';
+  const workingDays =
+    Array.isArray(options.workingDays) && options.workingDays.length > 0
+      ? options.workingDays
+      : [1, 2, 3, 4, 5]; // Default Mon to Fri
 
-  // Determine K (number of distinct rounds / clusters)
-  let k = 4;
-  if (mode === 'daily_split') {
-    k = Math.min(Math.max(1, options.numberOfDays || 3), active.length);
-  } else {
-    // 4-week cycle: default to 4 rounds (Week 1, Week 2, Week 3, Week 4)
-    // or options.numberOfDays if specified (e.g. 2 to 8 rounds)
-    k = Math.min(Math.max(1, options.numberOfDays || 4), active.length);
-  }
+  // Determine K (number of distinct daily rounds)
+  // Default to number of working days in a week (e.g. 5 days for Mon-Fri), or user choice
+  const defaultRounds = Math.min(workingDays.length, active.length);
+  const k = Math.min(Math.max(1, options.numberOfRounds || defaultRounds), active.length);
 
-  // 1. Separate customers by frequency if harmonizing
-  // 4w & 8w form the primary structural area rounds across the cycle
-  const primaryCustomers: Customer[] = [];
-  const biweeklyCustomers: Customer[] = [];
+  // 1. Group customers on the exact same street/postcode into Micro-Groups so neighbors NEVER get split
+  const streetGroupMap = new Map<string, Customer[]>();
+  active.forEach((c) => {
+    const streetKey = `${extractStreetOrArea(c.address).toLowerCase()}_${(extractPostcode(c.address) || '').split(' ')[0]}`;
+    if (!streetGroupMap.has(streetKey)) {
+      streetGroupMap.set(streetKey, []);
+    }
+    streetGroupMap.get(streetKey)!.push(c);
+  });
 
-  if (frequencyGrouping === 'harmonized' && mode === '4week_cycle') {
-    active.forEach((c) => {
-      const freq = c.frequencyWeeks || 4;
-      if (freq === 2) {
-        biweeklyCustomers.push(c);
-      } else {
-        primaryCustomers.push(c);
+  const microGroups = Array.from(streetGroupMap.values());
+
+  // 2. Pick K diverse seeds using K-Means++ furthest-point heuristic on groups
+  // Representative coordinates for each micro-group
+  const groupCentroids = microGroups.map((group) => {
+    let sLat = 0,
+      sLng = 0,
+      cCount = 0;
+    group.forEach((c) => {
+      if (c.lat && c.lng) {
+        sLat += c.lat;
+        sLng += c.lng;
+        cCount++;
       }
     });
-  } else {
-    primaryCustomers.push(...active);
-  }
+    return {
+      lat: cCount > 0 ? sLat / cCount : 0,
+      lng: cCount > 0 ? sLng / cCount : 0,
+      repCustomer: group[0],
+      group,
+    };
+  });
 
-  // Cluster assignment container
-  const clusterBuckets: Customer[][] = Array.from({ length: k }, () => []);
-
-  // If primary customers exist, cluster them across the K rounds
-  const poolToCluster = primaryCustomers.length > 0 ? primaryCustomers : active;
-  const targetPerCluster = Math.ceil(poolToCluster.length / k);
-
-  // Pick K diverse seeds using K-Means++ furthest point strategy
-  const seeds: Customer[] = [poolToCluster[0]];
-  while (seeds.length < k && seeds.length < poolToCluster.length) {
-    let bestCandidate = poolToCluster[0];
+  const seeds: (typeof groupCentroids)[0][] = [groupCentroids[0]];
+  while (seeds.length < k && seeds.length < groupCentroids.length) {
+    let bestCandidate = groupCentroids[0];
     let maxDist = -1;
 
-    for (const c of poolToCluster) {
-      if (seeds.includes(c)) continue;
+    for (const gc of groupCentroids) {
+      if (seeds.includes(gc)) continue;
       let minDistToSeed = Infinity;
       for (const s of seeds) {
-        const d = getCustomerDistanceMiles(c, s);
+        const d = getCustomerDistanceMiles(gc.repCustomer, s.repCustomer);
         if (d < minDistToSeed) minDistToSeed = d;
       }
 
       if (minDistToSeed > maxDist) {
         maxDist = minDistToSeed;
-        bestCandidate = c;
+        bestCandidate = gc;
       }
     }
 
     seeds.push(bestCandidate);
   }
 
-  const unassigned = [...poolToCluster];
+  // 3. Assign groups to clusters with capacity balancing
+  const clusterBuckets: Customer[][] = Array.from({ length: k }, () => []);
+  const unassignedGroups = [...groupCentroids];
+
+  // Assign seeds first
   seeds.forEach((seed, idx) => {
-    clusterBuckets[idx].push(seed);
-    const uIdx = unassigned.indexOf(seed);
-    if (uIdx !== -1) unassigned.splice(uIdx, 1);
+    clusterBuckets[idx].push(...seed.group);
+    const uIdx = unassignedGroups.indexOf(seed);
+    if (uIdx !== -1) unassignedGroups.splice(uIdx, 1);
   });
 
-  // Assign remaining primary customers with capacity constraints
-  while (unassigned.length > 0) {
-    let bestCustIdx = -1;
+  const targetPerCluster = Math.ceil(active.length / k);
+
+  while (unassignedGroups.length > 0) {
+    let bestGroupIdx = -1;
     let bestClusterIdx = -1;
     let bestDist = Infinity;
 
-    for (let i = 0; i < unassigned.length; i++) {
-      const c = unassigned[i];
+    for (let i = 0; i < unassignedGroups.length; i++) {
+      const g = unassignedGroups[i];
 
       for (let cIdx = 0; cIdx < k; cIdx++) {
-        const maxCapacity = targetPerCluster + (clusterBuckets[cIdx].length >= targetPerCluster ? 1 : 0);
-        if (clusterBuckets[cIdx].length >= maxCapacity && unassigned.length > k - cIdx) {
+        // Soft capacity constraint so days stay reasonably balanced
+        if (clusterBuckets[cIdx].length >= targetPerCluster + 3 && unassignedGroups.length > k - cIdx) {
           continue;
         }
 
+        // Average distance to customers in this cluster
         let clusterDist = 0;
         for (const member of clusterBuckets[cIdx]) {
-          clusterDist += getCustomerDistanceMiles(c, member);
+          clusterDist += getCustomerDistanceMiles(g.repCustomer, member);
         }
         clusterDist /= Math.max(1, clusterBuckets[cIdx].length);
 
         if (clusterDist < bestDist) {
           bestDist = clusterDist;
-          bestCustIdx = i;
+          bestGroupIdx = i;
           bestClusterIdx = cIdx;
         }
       }
     }
 
-    if (bestCustIdx === -1 || bestClusterIdx === -1) {
+    if (bestGroupIdx === -1 || bestClusterIdx === -1) {
+      // Fallback: assign to smallest cluster
       let minCluster = 0;
       for (let cIdx = 1; cIdx < k; cIdx++) {
         if (clusterBuckets[cIdx].length < clusterBuckets[minCluster].length) {
           minCluster = cIdx;
         }
       }
-      clusterBuckets[minCluster].push(unassigned.pop()!);
+      clusterBuckets[minCluster].push(...unassignedGroups.pop()!.group);
     } else {
-      clusterBuckets[bestClusterIdx].push(unassigned[bestCustIdx]);
-      unassigned.splice(bestCustIdx, 1);
+      clusterBuckets[bestClusterIdx].push(...unassignedGroups[bestGroupIdx].group);
+      unassignedGroups.splice(bestGroupIdx, 1);
     }
   }
 
-  // 2. Harmonize 2-weekly customers into their nearest geographic area round
-  // In a 4-week cycle, placing them in Week 1 or Week 2 means their +2w recurrence
-  // automatically aligns with Week 3 or Week 4!
-  if (biweeklyCustomers.length > 0) {
-    biweeklyCustomers.forEach((c) => {
-      let bestClusterIdx = 0;
-      let minAvgDist = Infinity;
-
-      for (let cIdx = 0; cIdx < k; cIdx++) {
-        if (clusterBuckets[cIdx].length === 0) continue;
-        let avgDist = 0;
-        for (const member of clusterBuckets[cIdx]) {
-          avgDist += getCustomerDistanceMiles(c, member);
-        }
-        avgDist /= clusterBuckets[cIdx].length;
-
-        if (avgDist < minAvgDist) {
-          minAvgDist = avgDist;
-          bestClusterIdx = cIdx;
-        }
-      }
-
-      clusterBuckets[bestClusterIdx].push(c);
-    });
-  }
-
-  // 3. Generate scheduled dates
-  const [startY, startM, startD] = options.startDateString.split('-').map(Number);
-  const baseDate = new Date(startY, startM - 1, startD);
+  // 4. Generate real working dates across selected weekdays (Monday, Tuesday, Wednesday...)
+  const scheduledDates = getWorkingDatesSequence(options.startDateString, k, workingDays);
 
   const dayClusters: DayCluster[] = [];
 
   for (let i = 0; i < k; i++) {
-    const curDate = new Date(baseDate);
-
-    if (mode === '4week_cycle') {
-      // In 4-week cycle mode:
-      // If k === 4, each round is 1 week apart (Week 1 = Day 0, Week 2 = +7 days, Week 3 = +14 days, Week 4 = +21 days)
-      // If k > 4, distribute across weeks (e.g. 2 days per week)
-      if (k === 4) {
-        curDate.setDate(curDate.getDate() + i * 7);
-      } else {
-        const weekIdx = Math.floor(i / Math.ceil(k / 4));
-        const dayInWeekIdx = i % Math.ceil(k / 4);
-        curDate.setDate(curDate.getDate() + weekIdx * 7 + dayInWeekIdx);
-      }
-    } else {
-      // In daily split mode: consecutive workdays in a single week
-      let daysAdded = 0;
-      let targetSteps = i;
-      while (targetSteps > 0) {
-        curDate.setDate(curDate.getDate() + 1);
-        if (options.skipWeekends !== false && (curDate.getDay() === 0 || curDate.getDay() === 6)) {
-          // Weekend, skip
-          continue;
-        }
-        targetSteps--;
-      }
-    }
-
-    // Skip weekend if landing on Sat/Sun
-    if (options.skipWeekends !== false) {
-      while (curDate.getDay() === 0 || curDate.getDay() === 6) {
-        curDate.setDate(curDate.getDate() + 1);
-      }
-    }
-
-    const y = curDate.getFullYear();
-    const m = String(curDate.getMonth() + 1).padStart(2, '0');
-    const d = String(curDate.getDate()).padStart(2, '0');
-    const dateString = `${y}-${m}-${d}`;
-    const dayName = curDate.toLocaleDateString('en-GB', {
+    const dateString = scheduledDates[i];
+    const [y, m, d] = dateString.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay();
+    const weekdayName = WEEKDAY_NAMES[dayOfWeek];
+    const badgeLabel = WEEKDAY_SHORT[dayOfWeek];
+    const dayName = dateObj.toLocaleDateString('en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'short',
     });
-
-    const weekNumber = mode === '4week_cycle' ? (k === 4 ? i + 1 : Math.floor(i / 2) + 1) : 1;
-    const roundLabel = mode === '4week_cycle' ? `Week ${weekNumber}` : `Day ${i + 1}`;
+    const roundLabel = dateObj.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
 
     // Order cluster members into optimal nearest-neighbor order
     const orderedInCluster = orderClusterTour(clusterBuckets[i]);
@@ -393,10 +382,11 @@ export function clusterCustomersByProximity(
 
     dayClusters.push({
       dayIndex: i,
-      weekNumber,
-      roundLabel,
       dateString,
       dayName,
+      weekdayName,
+      badgeLabel,
+      roundLabel,
       clusterName,
       customers: orderedInCluster,
       totalPrice,
@@ -417,7 +407,7 @@ export function clusterCustomersByProximity(
 }
 
 /**
- * Nearest-neighbor greedy ordering inside a cluster so stops follow a smooth driving/walking path
+ * Nearest-neighbor greedy tour ordering so stops follow a smooth walking/driving sequence.
  */
 function orderClusterTour(customers: Customer[]): Customer[] {
   if (customers.length <= 2) return customers;
