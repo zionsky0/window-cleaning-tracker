@@ -37,14 +37,16 @@ import {
   setLocalTravelMode,
 } from '@/lib/storage';
 
-type RouteScope = 'today' | 'week' | 'all';
+export type RouteScope = 'today' | 'week' | 'all' | 'custom';
 
-interface RouteMapModalProps {
+export interface RouteMapModalProps {
   isOpen: boolean;
   onClose: () => void;
   todayCustomers: Customer[];
   weekCustomers: Customer[];
   allCustomers: Customer[];
+  customCustomers?: Customer[];
+  customDateLabel?: string;
   onApplyRouteOrder: (orderedCustomers: Customer[]) => void;
   onStartRouteRunner: (
     orderedCustomers: Customer[],
@@ -60,6 +62,8 @@ export function RouteMapModal({
   todayCustomers,
   weekCustomers,
   allCustomers,
+  customCustomers,
+  customDateLabel,
   onApplyRouteOrder,
   onStartRouteRunner,
   onMarkComplete,
@@ -100,6 +104,8 @@ export function RouteMapModal({
       ? todayCustomers
       : scope === 'week'
       ? weekCustomers
+      : scope === 'custom' && customCustomers
+      ? customCustomers
       : allCustomers;
 
   // Run Route Optimization for the active pool
@@ -186,9 +192,19 @@ export function RouteMapModal({
 
     let targetScope: RouteScope = 'today';
     let pool = todayCustomers;
-    if (initialScope) {
+    if (initialScope === 'custom' && customCustomers && customCustomers.length > 0) {
+      targetScope = 'custom';
+      pool = customCustomers;
+    } else if (initialScope) {
       targetScope = initialScope;
-      pool = initialScope === 'today' ? todayCustomers : initialScope === 'week' ? weekCustomers : allCustomers;
+      pool =
+        initialScope === 'today'
+          ? todayCustomers
+          : initialScope === 'week'
+          ? weekCustomers
+          : initialScope === 'custom' && customCustomers
+          ? customCustomers
+          : allCustomers;
     } else if (todayCustomers.length > 0) {
       targetScope = 'today';
       pool = todayCustomers;
@@ -236,12 +252,19 @@ export function RouteMapModal({
 
     // Synchronously run optimization with initial loaded configuration
     runOptimization(pool, initialStart, mode, initialFinish);
-  }, [isOpen]);
+  }, [isOpen, initialScope, customCustomers]);
 
-  // Handle scope changes (Today / Week / All)
+  // Handle scope changes (Today / Week / All / Custom)
   const handleScopeChange = (newScope: RouteScope) => {
     setScope(newScope);
-    const pool = newScope === 'today' ? todayCustomers : newScope === 'week' ? weekCustomers : allCustomers;
+    const pool =
+      newScope === 'today'
+        ? todayCustomers
+        : newScope === 'week'
+        ? weekCustomers
+        : newScope === 'custom' && customCustomers
+        ? customCustomers
+        : allCustomers;
     runOptimization(pool);
   };
 
@@ -684,8 +707,22 @@ export function RouteMapModal({
 
         {/* Content */}
         <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
-          {/* 1. Scope Selector Bar (Today, This Week, All Rounds) */}
-          <div className="grid grid-cols-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold transition-colors duration-200">
+          {/* 1. Scope Selector Bar (Today, This Week, All Rounds, Custom Date) */}
+          <div className={`grid ${customCustomers && customCustomers.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold transition-colors duration-200`}>
+            {customCustomers && customCustomers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleScopeChange('custom')}
+                className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer truncate ${
+                  scope === 'custom'
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title={customDateLabel || 'Selected Date'}
+              >
+                <span className="truncate">{customDateLabel || 'Date'} ({customCustomers.length})</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleScopeChange('today')}

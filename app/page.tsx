@@ -52,7 +52,9 @@ export default function HomePage() {
   // Active Route Runner State
   const [activeRoute, setActiveRoute] = useState<ActiveRouteState | null>(null);
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
-  const [routeModalScope, setRouteModalScope] = useState<'today' | 'week' | 'all'>('today');
+  const [routeModalScope, setRouteModalScope] = useState<'today' | 'week' | 'all' | 'custom'>('today');
+  const [customRouteCustomers, setCustomRouteCustomers] = useState<Customer[] | null>(null);
+  const [customRouteDateLabel, setCustomRouteDateLabel] = useState<string | null>(null);
   const [isAreaPlannerOpen, setIsAreaPlannerOpen] = useState(false);
   const [navApp, setNavApp] = useState<NavApp>('google');
 
@@ -567,6 +569,8 @@ export default function HomePage() {
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                       {activeRoute?.isActive
                         ? 'Shortest road driving order with 1-tap navigation'
+                        : currentTab === 'week' && selectedWeekDate
+                        ? `Optimize route for ${new Date(selectedWeekDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
                         : todayDueCustomers.length > 0
                         ? `Optimize driving route for today's ${todayDueCustomers.length} cleans`
                         : `Plan & map driving route for your ${allActiveCustomers.length} rounds`}
@@ -577,7 +581,22 @@ export default function HomePage() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => {
-                      setRouteModalScope('today');
+                      if (currentTab === 'week' && selectedWeekDate) {
+                        const targetCusts = customers.filter(
+                          (c) => c.status !== 'paused' && c.nextDueDate === selectedWeekDate
+                        );
+                        const [y, m, d] = selectedWeekDate.split('-').map(Number);
+                        const label = new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                        });
+                        setCustomRouteCustomers(targetCusts);
+                        setCustomRouteDateLabel(label);
+                        setRouteModalScope('custom');
+                      } else {
+                        setRouteModalScope(currentTab === 'week' ? 'week' : 'today');
+                      }
                       setIsRouteModalOpen(true);
                     }}
                     className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
@@ -664,7 +683,18 @@ export default function HomePage() {
             onMarkComplete={handleMarkComplete}
             onEdit={(c) => setEditingCustomer(c)}
             onUpdatePaymentStatus={handleUpdatePaymentStatus}
-            onPlanRouteForDay={() => setIsRouteModalOpen(true)}
+            onPlanRouteForDay={(dayCustomers, dateStr) => {
+              const [y, m, d] = dateStr.split('-').map(Number);
+              const label = new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+              });
+              setCustomRouteCustomers(dayCustomers);
+              setCustomRouteDateLabel(label);
+              setRouteModalScope('custom');
+              setIsRouteModalOpen(true);
+            }}
             isCompletingId={completingId}
           />
         )}
@@ -767,6 +797,8 @@ export default function HomePage() {
         todayCustomers={todayDueCustomers}
         weekCustomers={weekCustomers}
         allCustomers={allActiveCustomers}
+        customCustomers={customRouteCustomers || undefined}
+        customDateLabel={customRouteDateLabel || undefined}
         onApplyRouteOrder={(ordered) => {
           handleStartRouteRunner(ordered);
         }}

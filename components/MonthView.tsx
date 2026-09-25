@@ -34,7 +34,7 @@ interface MonthViewProps {
   onMarkComplete: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   onUpdatePaymentStatus: (customer: Customer, status: PaymentStatus) => void;
-  onPlanRouteForDay?: (dayCustomers: Customer[]) => void;
+  onPlanRouteForDay?: (dayCustomers: Customer[], dateStr: string) => void;
   isCompletingId?: string | null;
 }
 
@@ -355,7 +355,7 @@ export function MonthView({
 
                 {selectedDayCustomers.length > 0 && onPlanRouteForDay && (
                   <button
-                    onClick={() => onPlanRouteForDay(selectedDayCustomers)}
+                    onClick={() => onPlanRouteForDay(selectedDayCustomers, selectedDate)}
                     className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                   >
                     <Compass className="w-3.5 h-3.5" />
