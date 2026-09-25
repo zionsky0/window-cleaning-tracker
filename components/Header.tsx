@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenAddCustomer: () => void;
   onOpenSync: () => void;
   onOpenExport: () => void;
+  showSummaryCards?: boolean;
 }
 
 export function Header({
@@ -22,6 +23,7 @@ export function Header({
   onOpenAddCustomer,
   onOpenSync,
   onOpenExport,
+  showSummaryCards = true,
 }: HeaderProps) {
   const todayFormatted = new Date().toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -112,90 +114,94 @@ export function Header({
         </span>
       </div>
 
-      {/* Daily Round Summary Cards */}
-      <div className="px-4 py-3 bg-white dark:bg-slate-900 grid grid-cols-2 gap-2.5 transition-colors duration-200">
-        <div className="bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/40 rounded-xl p-3 flex flex-col justify-between">
-          <span className="text-xs font-medium text-sky-800 dark:text-sky-300 flex items-center justify-between">
-            Today&apos;s Target
-            <span className="font-bold text-sky-900 dark:text-sky-200 bg-sky-200/80 dark:bg-sky-900/80 px-1.5 py-0.5 rounded text-[11px]">
-              {stats.dueTodayCount} Due
-            </span>
-          </span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl font-extrabold text-slate-900 dark:text-white">
-              £{stats.todayEstimatedEarnings}
-            </span>
-            {stats.overdueCount > 0 && (
-              <span className="text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 px-1.5 py-0.5 rounded">
-                +{stats.overdueCount} overdue
+      {/* Daily Round Summary Cards (Shown on Today/Route tab) */}
+      {showSummaryCards && (
+        <>
+          <div className="px-4 py-3 bg-white dark:bg-slate-900 grid grid-cols-2 gap-2.5 transition-colors duration-200">
+            <div className="bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/40 rounded-xl p-3 flex flex-col justify-between">
+              <span className="text-xs font-medium text-sky-800 dark:text-sky-300 flex items-center justify-between">
+                Today&apos;s Target
+                <span className="font-bold text-sky-900 dark:text-sky-200 bg-sky-200/80 dark:bg-sky-900/80 px-1.5 py-0.5 rounded text-[11px]">
+                  {stats.dueTodayCount} Due
+                </span>
               </span>
-            )}
-          </div>
-        </div>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white">
+                  £{stats.todayEstimatedEarnings}
+                </span>
+                {stats.overdueCount > 0 && (
+                  <span className="text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 px-1.5 py-0.5 rounded">
+                    +{stats.overdueCount} overdue
+                  </span>
+                )}
+              </div>
+            </div>
 
-        <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/40 rounded-xl p-3 flex flex-col justify-between">
-          <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-            Done Today
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-          </span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl font-extrabold text-emerald-800 dark:text-emerald-300">
-              £{stats.completedTodayEarnings}
-            </span>
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-              {stats.completedTodayCount} done
-            </span>
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/40 rounded-xl p-3 flex flex-col justify-between">
+              <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                Done Today
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              </span>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-xl font-extrabold text-emerald-800 dark:text-emerald-300">
+                  £{stats.completedTodayEarnings}
+                </span>
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                  {stats.completedTodayCount} done
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Live Payment Totals Breakdown */}
-      <div className="px-4 pb-2.5 pt-0.5 bg-white dark:bg-slate-900 grid grid-cols-3 gap-2 transition-colors duration-200">
-        <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/40 rounded-xl p-2 flex flex-col justify-between">
-          <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1 truncate">
-            <Banknote className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="truncate">Cash</span>
-          </span>
-          <div className="mt-0.5 flex items-baseline justify-between">
-            <span className="text-sm font-black text-emerald-800 dark:text-emerald-300">
-              £{stats.cashAmount}
-            </span>
-            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-              {stats.cashCount}
-            </span>
-          </div>
-        </div>
+          {/* Live Payment Totals Breakdown */}
+          <div className="px-4 pb-2.5 pt-0.5 bg-white dark:bg-slate-900 grid grid-cols-3 gap-2 transition-colors duration-200">
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-900/40 rounded-xl p-2 flex flex-col justify-between">
+              <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1 truncate">
+                <Banknote className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate">Cash</span>
+              </span>
+              <div className="mt-0.5 flex items-baseline justify-between">
+                <span className="text-sm font-black text-emerald-800 dark:text-emerald-300">
+                  £{stats.cashAmount}
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  {stats.cashCount}
+                </span>
+              </div>
+            </div>
 
-        <div className="bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/70 dark:border-sky-900/40 rounded-xl p-2 flex flex-col justify-between">
-          <span className="text-[10px] font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1 truncate">
-            <CreditCard className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
-            <span className="truncate">Card</span>
-          </span>
-          <div className="mt-0.5 flex items-baseline justify-between">
-            <span className="text-sm font-black text-sky-800 dark:text-sky-300">
-              £{stats.cardAmount}
-            </span>
-            <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
-              {stats.cardCount}
-            </span>
-          </div>
-        </div>
+            <div className="bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/70 dark:border-sky-900/40 rounded-xl p-2 flex flex-col justify-between">
+              <span className="text-[10px] font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1 truncate">
+                <CreditCard className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
+                <span className="truncate">Card</span>
+              </span>
+              <div className="mt-0.5 flex items-baseline justify-between">
+                <span className="text-sm font-black text-sky-800 dark:text-sky-300">
+                  £{stats.cardAmount}
+                </span>
+                <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                  {stats.cardCount}
+                </span>
+              </div>
+            </div>
 
-        <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/40 rounded-xl p-2 flex flex-col justify-between">
-          <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1 truncate">
-            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="truncate">Unpaid</span>
-          </span>
-          <div className="mt-0.5 flex items-baseline justify-between">
-            <span className="text-sm font-black text-amber-800 dark:text-amber-300">
-              £{stats.unpaidAmount}
-            </span>
-            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-              {stats.unpaidCount}
-            </span>
+            <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/40 rounded-xl p-2 flex flex-col justify-between">
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1 truncate">
+                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="truncate">Unpaid</span>
+              </span>
+              <div className="mt-0.5 flex items-baseline justify-between">
+                <span className="text-sm font-black text-amber-800 dark:text-amber-300">
+                  £{stats.unpaidAmount}
+                </span>
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                  {stats.unpaidCount}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </header>
   );
 }

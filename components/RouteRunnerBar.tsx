@@ -73,7 +73,7 @@ export function RouteRunnerBar({
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto">
+      <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto">
         <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl p-3 flex items-center justify-between border border-slate-700 animate-in slide-in-from-bottom duration-200">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-brand-500 flex items-center justify-center font-black text-xs">
@@ -106,7 +106,7 @@ export function RouteRunnerBar({
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 text-white shadow-2xl animate-in slide-in-from-bottom duration-200">
+    <div className="fixed bottom-16 left-0 right-0 z-50 bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 text-white shadow-2xl animate-in slide-in-from-bottom duration-200">
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-4 space-y-2.5">
         {/* Progress bar */}
         <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">

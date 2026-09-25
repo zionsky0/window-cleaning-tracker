@@ -175,3 +175,102 @@ export function getCurrentWeekDates(todayStr = getTodayDateString()): WeekDayInf
 
   return days;
 }
+
+export interface MonthDayInfo {
+  dateString: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isPast: boolean;
+}
+
+/**
+ * Returns a 35 or 42 day grid representing a month calendar (Monday to Sunday)
+ */
+export function getMonthMatrix(year: number, month: number, todayStr = getTodayDateString()): MonthDayInfo[] {
+  // First day of target month (1-indexed month)
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+
+  // Day of week: 0 = Sun, 1 = Mon ... 6 = Sat
+  let firstDayOfWeek = firstDay.getDay();
+  // Convert so Monday = 0, Sunday = 6
+  let startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+  const days: MonthDayInfo[] = [];
+
+  // Previous month padding
+  for (let i = startOffset; i > 0; i--) {
+    const prevDate = new Date(year, month - 1, 1 - i);
+    const y = prevDate.getFullYear();
+    const m = String(prevDate.getMonth() + 1).padStart(2, '0');
+    const d = String(prevDate.getDate()).padStart(2, '0');
+    const dateString = `${y}-${m}-${d}`;
+    days.push({
+      dateString,
+      dayNumber: prevDate.getDate(),
+      isCurrentMonth: false,
+      isToday: dateString === todayStr,
+      isPast: dateString < todayStr,
+    });
+  }
+
+  // Current month days
+  const totalDaysInMonth = lastDay.getDate();
+  for (let i = 1; i <= totalDaysInMonth; i++) {
+    const curDate = new Date(year, month - 1, i);
+    const y = curDate.getFullYear();
+    const m = String(curDate.getMonth() + 1).padStart(2, '0');
+    const d = String(curDate.getDate()).padStart(2, '0');
+    const dateString = `${y}-${m}-${d}`;
+    days.push({
+      dateString,
+      dayNumber: i,
+      isCurrentMonth: true,
+      isToday: dateString === todayStr,
+      isPast: dateString < todayStr,
+    });
+  }
+
+  // Next month padding to round up to full weeks (multiples of 7)
+  const remaining = (7 - (days.length % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    const nextDate = new Date(year, month, i);
+    const y = nextDate.getFullYear();
+    const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+    const d = String(nextDate.getDate()).padStart(2, '0');
+    const dateString = `${y}-${m}-${d}`;
+    days.push({
+      dateString,
+      dayNumber: nextDate.getDate(),
+      isCurrentMonth: false,
+      isToday: dateString === todayStr,
+      isPast: dateString < todayStr,
+    });
+  }
+
+  return days;
+}
+
+/**
+ * Extracts a recognizable street or neighborhood name from an address
+ * e.g., "14 High Street, Manchester, M20 4AB" -> "High Street"
+ */
+export function extractStreetOrArea(address: string): string {
+  if (!address) return 'Unspecified Area';
+  // Split on comma
+  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return address;
+
+  // The first part often has house number + street name (e.g. "124 Victoria Road")
+  // Strip leading house numbers or flat numbers: "12A High Street" -> "High Street"
+  const firstPart = parts[0];
+  const cleaned = firstPart.replace(/^(\d+[\w\/-]*|\bFlat\s+\w+|\bUnit\s+\w+)\s+/i, '').trim();
+
+  if (cleaned.length > 2) {
+    return cleaned;
+  }
+
+  // Fallback to second part or full first part
+  return parts.length > 1 ? parts[1] : firstPart;
+}

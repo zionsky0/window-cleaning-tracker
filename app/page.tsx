@@ -31,12 +31,18 @@ import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { EditCustomerModal } from '@/components/EditCustomerModal';
 import { SyncModal } from '@/components/SyncModal';
 import { ExportModal } from '@/components/ExportModal';
+import { BottomNav, MainNavTab } from '@/components/BottomNav';
+import { MonthView } from '@/components/MonthView';
+import { UnpaidView } from '@/components/UnpaidView';
+import { CustomerDirectoryView } from '@/components/CustomerDirectoryView';
+import { MoreSettingsView } from '@/components/MoreSettingsView';
 
 export default function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [currentUser, setCurrentUser] = useState<CleanerUser | null>(null);
   const [businessName, setBusinessName] = useState('ClearView');
   const [isLoaded, setIsLoaded] = useState(false);
+  const [mainTab, setMainTab] = useState<MainNavTab>('today');
   const [currentTab, setCurrentTab] = useState<TabType>('today');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [selectedWeekDate, setSelectedWeekDate] = useState<string | null>(null);
@@ -218,6 +224,21 @@ export default function HomePage() {
       setLocalActiveRoute(updatedRoute);
     }
   };
+
+  // Toggle customer paused/active status
+  const handleTogglePauseCustomer = (customer: Customer) => {
+    const newStatus = customer.status === 'paused' ? 'active' : 'paused';
+    const updated = customers.map((c) => (c.id === customer.id ? { ...c, status: newStatus } : c));
+    updateCustomers(updated);
+  };
+
+  // Month cleans count for month tab badge
+  const monthCleansCount = useMemo(() => {
+    const currentMonthPrefix = todayStr.slice(0, 7);
+    return customers.filter(
+      (c) => c.status !== 'paused' && c.nextDueDate.startsWith(currentMonthPrefix)
+    ).length;
+  }, [customers, todayStr]);
 
   // Import customers from CSV
   const handleImportCustomers = (imported: Omit<Customer, 'id'>[]) => {
@@ -487,152 +508,224 @@ export default function HomePage() {
         onOpenAddCustomer={() => setIsAddModalOpen(true)}
         onOpenSync={() => setIsSyncModalOpen(true)}
         onOpenExport={() => setIsExportModalOpen(true)}
+        showSummaryCards={mainTab === 'today'}
       />
 
-      <FilterBar
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        todayCount={tabCounts.today}
-        weekCount={tabCounts.week}
-        totalCount={tabCounts.all}
-        completedCount={tabCounts.completed}
-        paymentFilter={paymentFilter}
-        onPaymentFilterChange={setPaymentFilter}
-        unpaidCount={stats.unpaidCount}
-        cashCount={stats.cashCount}
-        cardCount={stats.cardCount}
-      />
+      {mainTab === 'today' && (
+        <FilterBar
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          todayCount={tabCounts.today}
+          weekCount={tabCounts.week}
+          totalCount={tabCounts.all}
+          completedCount={tabCounts.completed}
+          paymentFilter={paymentFilter}
+          onPaymentFilterChange={setPaymentFilter}
+          unpaidCount={stats.unpaidCount}
+          cashCount={stats.cashCount}
+          cardCount={stats.cardCount}
+        />
+      )}
 
-      <main className={`flex-1 p-3.5 space-y-3 ${activeRoute?.isActive ? 'pb-44' : 'pb-24'}`}>
-        {/* Weekly Calendar Widget when in 'week' view */}
-        {currentTab === 'week' && (
-          <WeeklyCalendar
+      <main className={`flex-1 p-3.5 space-y-3 ${activeRoute?.isActive ? 'pb-52' : 'pb-24'}`}>
+        {/* Today Tab: Active rounds, route runner, and cards */}
+        {mainTab === 'today' && (
+          <>
+            {/* Weekly Calendar Widget when in 'week' view */}
+            {currentTab === 'week' && (
+              <WeeklyCalendar
+                customers={customers}
+                selectedDate={selectedWeekDate}
+                onSelectDate={setSelectedWeekDate}
+              />
+            )}
+
+            {/* Route Planner Launch Bar */}
+            {allActiveCustomers.length > 0 && (
+              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-900/80 border border-sky-200/80 dark:border-slate-700/80 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-xs transition-colors duration-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Compass className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                        {activeRoute?.isActive ? 'Active Route Running' : 'Smart Route Planner'}
+                      </h4>
+                      {activeRoute?.isActive && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                          Stop {activeRoute.currentStopIndex + 1} of {activeRoute.stopIds.length}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {activeRoute?.isActive
+                        ? 'Shortest road driving order with 1-tap navigation'
+                        : todayDueCustomers.length > 0
+                        ? `Optimize driving route for today's ${todayDueCustomers.length} cleans`
+                        : `Plan & map driving route for your ${allActiveCustomers.length} rounds`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => setIsRouteModalOpen(true)}
+                    className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{activeRoute?.isActive ? 'View Map' : 'Plan Best Route'}</span>
+                  </button>
+                  {activeRoute?.isActive && (
+                    <button
+                      onClick={handleEndRoute}
+                      className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                      title="Exit Active Route"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Customer Cards List */}
+            {filteredCustomers.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3 shadow-xs transition-colors duration-200">
+                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 mx-auto flex items-center justify-center">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800 dark:text-white">No customers found</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
+                    {searchQuery
+                      ? `No matches for "${searchQuery}".`
+                      : paymentFilter !== 'all'
+                      ? paymentFilter === 'unpaid'
+                        ? 'Great news! No unpaid customers found in this view.'
+                        : paymentFilter === 'cash'
+                        ? 'No cash payments found for this view.'
+                        : 'No card payments found for this view.'
+                      : currentTab === 'today'
+                      ? 'All caught up! No cleans overdue or due today.'
+                      : currentTab === 'week'
+                      ? selectedWeekDate
+                        ? 'No cleans scheduled for this selected day.'
+                        : 'No cleans scheduled for this week.'
+                      : 'Tap the Add button to create your first customer.'}
+                  </p>
+                </div>
+                {customers.length === 0 && (
+                  <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 bg-brand-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add First Customer</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => {
+                const stopIndex = activeRoute?.isActive ? activeRoute.stopIds.indexOf(customer.id) : -1;
+                const stopNumber = stopIndex !== -1 ? stopIndex + 1 : undefined;
+
+                return (
+                  <CustomerCard
+                    key={customer.id}
+                    customer={customer}
+                    onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
+                    onMarkComplete={handleMarkComplete}
+                    onEdit={(c) => setEditingCustomer(c)}
+                    onUpdatePaymentStatus={handleUpdatePaymentStatus}
+                    isCompleting={completingId === customer.id}
+                    stopNumber={stopNumber}
+                  />
+                );
+              })
+            )}
+          </>
+        )}
+
+        {/* Month Calendar & Where-and-When View */}
+        {mainTab === 'month' && (
+          <MonthView
             customers={customers}
-            selectedDate={selectedWeekDate}
-            onSelectDate={setSelectedWeekDate}
+            onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
+            onMarkComplete={handleMarkComplete}
+            onEdit={(c) => setEditingCustomer(c)}
+            onUpdatePaymentStatus={handleUpdatePaymentStatus}
+            onPlanRouteForDay={() => setIsRouteModalOpen(true)}
+            isCompletingId={completingId}
           />
         )}
 
-        {/* Route Planner Launch Bar */}
-        {allActiveCustomers.length > 0 && (
-          <div className="bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-900/80 border border-sky-200/80 dark:border-slate-700/80 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-xs transition-colors duration-200">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Compass className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                    {activeRoute?.isActive ? 'Active Route Running' : 'Smart Route Planner'}
-                  </h4>
-                  {activeRoute?.isActive && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Stop {activeRoute.currentStopIndex + 1} of {activeRoute.stopIds.length}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  {activeRoute?.isActive
-                    ? 'Shortest road driving order with 1-tap navigation'
-                    : todayDueCustomers.length > 0
-                    ? `Optimize driving route for today's ${todayDueCustomers.length} cleans`
-                    : `Plan & map driving route for your ${allActiveCustomers.length} rounds`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => setIsRouteModalOpen(true)}
-                className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 active:scale-97 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{activeRoute?.isActive ? 'View Map' : 'Plan Best Route'}</span>
-              </button>
-              {activeRoute?.isActive && (
-                <button
-                  onClick={handleEndRoute}
-                  className="p-2 text-slate-400 hover:text-red-500 rounded-xl hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
-                  title="Exit Active Route"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
+        {/* Dedicated Unpaid Ledger View ("see who's unpaid") */}
+        {mainTab === 'unpaid' && (
+          <UnpaidView
+            customers={customers}
+            onUpdatePaymentStatus={handleUpdatePaymentStatus}
+            onEditCustomer={(c) => setEditingCustomer(c)}
+            businessName={businessName}
+            cashTotal={stats.cashAmount}
+            cashCount={stats.cashCount}
+            cardTotal={stats.cardAmount}
+            cardCount={stats.cardCount}
+          />
         )}
 
-        {/* Customer Cards List */}
-        {filteredCustomers.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3 shadow-xs transition-colors duration-200">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 mx-auto flex items-center justify-center">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-slate-800 dark:text-white">No customers found</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
-                {searchQuery
-                  ? `No matches for "${searchQuery}".`
-                  : paymentFilter !== 'all'
-                  ? paymentFilter === 'unpaid'
-                    ? 'Great news! No unpaid customers found in this view.'
-                    : paymentFilter === 'cash'
-                    ? 'No cash payments found for this view.'
-                    : 'No card payments found for this view.'
-                  : currentTab === 'today'
-                  ? 'All caught up! No cleans overdue or due today.'
-                  : currentTab === 'week'
-                  ? selectedWeekDate
-                    ? 'No cleans scheduled for this selected day.'
-                    : 'No cleans scheduled for this week.'
-                  : 'Tap the Add button to create your first customer.'}
-              </p>
-            </div>
-            {customers.length === 0 && (
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="mt-2 inline-flex items-center gap-1.5 bg-brand-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add First Customer</span>
-              </button>
-            )}
-          </div>
-        ) : (
-          filteredCustomers.map((customer) => {
-            const stopIndex = activeRoute?.isActive ? activeRoute.stopIds.indexOf(customer.id) : -1;
-            const stopNumber = stopIndex !== -1 ? stopIndex + 1 : undefined;
+        {/* Customer Directory View ("see our customers and stuff") */}
+        {mainTab === 'customers' && (
+          <CustomerDirectoryView
+            customers={customers}
+            onOpenAddCustomer={() => setIsAddModalOpen(true)}
+            onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
+            onMarkComplete={handleMarkComplete}
+            onEditCustomer={(c) => setEditingCustomer(c)}
+            onUpdatePaymentStatus={handleUpdatePaymentStatus}
+            onTogglePauseCustomer={handleTogglePauseCustomer}
+            isCompletingId={completingId}
+          />
+        )}
 
-            return (
-              <CustomerCard
-                key={customer.id}
-                customer={customer}
-                onOpenOnMyWay={(c) => setOnMyWayCustomer(c)}
-                onMarkComplete={handleMarkComplete}
-                onEdit={(c) => setEditingCustomer(c)}
-                onUpdatePaymentStatus={handleUpdatePaymentStatus}
-                isCompleting={completingId === customer.id}
-                stopNumber={stopNumber}
-              />
-            );
-          })
+        {/* More / Stats, Sync & Settings View */}
+        {mainTab === 'more' && (
+          <MoreSettingsView
+            stats={stats}
+            businessName={businessName}
+            currentUser={currentUser}
+            onOpenSync={() => setIsSyncModalOpen(true)}
+            onOpenExport={() => setIsExportModalOpen(true)}
+            onOpenAddCustomer={() => setIsAddModalOpen(true)}
+          />
         )}
       </main>
 
-      {/* Floating Add Button (only when route runner is not active) */}
-      {!activeRoute?.isActive && (
-        <div className="fixed bottom-4 right-4 z-20 sm:hidden">
+      {/* Floating Add Button (Mobile friendly positioned above BottomNav) */}
+      {!activeRoute?.isActive && (mainTab === 'today' || mainTab === 'customers') && (
+        <div className="fixed bottom-20 right-4 z-30 sm:hidden">
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="w-14 h-14 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center transition-all"
+            className="w-13 h-13 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white rounded-2xl shadow-lg shadow-brand-600/30 flex items-center justify-center transition-all cursor-pointer"
           >
-            <Plus className="w-7 h-7 stroke-[2.5]" />
+            <Plus className="w-6 h-6 stroke-[2.5]" />
           </button>
         </div>
       )}
+
+      {/* Mobile-First Bottom Navigation Bar */}
+      <BottomNav
+        currentTab={mainTab}
+        onTabChange={setMainTab}
+        todayCount={stats.dueTodayCount + stats.overdueCount}
+        unpaidCount={stats.unpaidCount}
+        totalCustomersCount={customers.length}
+        monthCleansCount={monthCleansCount}
+        unpaidAmount={stats.unpaidAmount}
+      />
 
       {/* Active Sticky Route Runner Bottom Bar */}
       {activeRoute?.isActive && activeRouteCustomers.length > 0 && (
