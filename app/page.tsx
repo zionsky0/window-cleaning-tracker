@@ -37,6 +37,8 @@ import { UnpaidView } from '@/components/UnpaidView';
 import { CustomerDirectoryView } from '@/components/CustomerDirectoryView';
 import { MoreSettingsView } from '@/components/MoreSettingsView';
 import { SmartAreaPlannerModal } from '@/components/SmartAreaPlannerModal';
+import { OnboardingGuide, SAMPLE_UK_CUSTOMERS } from '@/components/OnboardingGuide';
+import { BusinessProfileModal } from '@/components/BusinessProfileModal';
 
 export default function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -58,6 +60,10 @@ export default function HomePage() {
   const [isAreaPlannerOpen, setIsAreaPlannerOpen] = useState(false);
   const [navApp, setNavApp] = useState<NavApp>('google');
 
+  // Onboarding & Setup Guide State
+  const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
   // Modals
   const [onMyWayCustomer, setOnMyWayCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -72,6 +78,11 @@ export default function HomePage() {
     const localUsr = getLocalUser();
     const localRoute = getLocalActiveRoute();
     const localNav = getLocalNavApp();
+    const dismissed = localStorage.getItem('clearview_onboarding_dismissed');
+
+    if (dismissed === 'true') {
+      setIsOnboardingDismissed(true);
+    }
 
     setCustomers(localCust);
     if (localUsr) {
@@ -253,6 +264,37 @@ export default function HomePage() {
     }));
     const combined = [...newItems, ...customers];
     updateCustomers(combined);
+  };
+
+  // Onboarding handlers
+  const handleDismissOnboarding = () => {
+    setIsOnboardingDismissed(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('clearview_onboarding_dismissed', 'true');
+    }
+  };
+
+  const handleReopenOnboarding = () => {
+    setIsOnboardingDismissed(false);
+    setMainTab('today');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('clearview_onboarding_dismissed');
+    }
+  };
+
+  const handleLoadSampleData = () => {
+    const newItems: Customer[] = SAMPLE_UK_CUSTOMERS.map((c, i) => ({
+      ...c,
+      id: `sample-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+    }));
+    const merged = [...newItems, ...customers];
+    updateCustomers(merged);
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#0284c7', '#38bdf8', '#10b981', '#34d399', '#f59e0b'],
+    });
   };
 
   // User auth change
@@ -538,6 +580,20 @@ export default function HomePage() {
         {/* Today Tab: Active rounds, route runner, and cards */}
         {mainTab === 'today' && (
           <>
+            {/* Interactive Step-by-Step Onboarding Guide */}
+            {!isOnboardingDismissed && (
+              <OnboardingGuide
+                customers={customers}
+                businessName={businessName}
+                onOpenAddCustomer={() => setIsAddModalOpen(true)}
+                onOpenImport={() => setIsExportModalOpen(true)}
+                onOpenAreaPlanner={() => setIsAreaPlannerOpen(true)}
+                onOpenProfileModal={() => setIsProfileModalOpen(true)}
+                onLoadSampleData={handleLoadSampleData}
+                onDismiss={handleDismissOnboarding}
+              />
+            )}
+
             {/* Weekly Calendar Widget when in 'week' view */}
             {currentTab === 'week' && (
               <WeeklyCalendar
@@ -741,6 +797,8 @@ export default function HomePage() {
             onOpenSync={() => setIsSyncModalOpen(true)}
             onOpenExport={() => setIsExportModalOpen(true)}
             onOpenAddCustomer={() => setIsAddModalOpen(true)}
+            onOpenBusinessProfile={() => setIsProfileModalOpen(true)}
+            onReopenOnboarding={handleReopenOnboarding}
           />
         )}
       </main>
@@ -842,6 +900,18 @@ export default function HomePage() {
         customers={customers}
         onImportCustomers={handleImportCustomers}
         businessName={businessName}
+      />
+      <BusinessProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        businessName={businessName}
+        onSaveBusinessName={(name) => {
+          setBusinessName(name);
+          const user = getLocalUser();
+          if (user) {
+            setLocalUser({ ...user, businessName: name });
+          }
+        }}
       />
     </div>
   );

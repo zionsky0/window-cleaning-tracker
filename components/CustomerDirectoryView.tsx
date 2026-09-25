@@ -130,7 +130,7 @@ export function CustomerDirectoryView({
   return (
     <div className="space-y-3">
       {/* Portfolio Overview Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs transition-colors duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs transition-colors duration-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
@@ -141,7 +141,7 @@ export function CustomerDirectoryView({
                 Customer Directory
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                {activeCount} active round{activeCount !== 1 ? 's' : ''}
+                {activeCount} active customer{activeCount !== 1 ? 's' : ''}
                 {pausedCount > 0 && ` • ${pausedCount} paused`}
               </p>
             </div>
@@ -167,7 +167,7 @@ export function CustomerDirectoryView({
               title="Auto-plan rounds by area proximity"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>Auto-Plan Areas</span>
+              <span>Plan Areas</span>
             </button>
 
             {/* Add Customer Button */}
@@ -182,50 +182,33 @@ export function CustomerDirectoryView({
           </div>
         </div>
 
-        {/* Financial metrics */}
-        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2.5">
-            <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Round Portfolio Value</span>
-            <span className="font-black text-base text-slate-900 dark:text-white">
-              £{totalCycleValue} <span className="text-[11px] font-semibold text-slate-400">/ cycle</span>
+        {/* Modern compact financial metric strip (decluttered, no redundant banners) */}
+        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs px-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 text-[11px] font-semibold">Portfolio:</span>
+            <span className="font-black text-sm text-slate-900 dark:text-white">
+              £{totalCycleValue} <span className="text-[10px] font-medium text-slate-400">/ cycle</span>
             </span>
           </div>
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2.5">
-            <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Average Job Price</span>
-            <span className="font-black text-base text-slate-900 dark:text-white">
-              £{avgPrice} <span className="text-[11px] font-semibold text-slate-400">/ house</span>
+          <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 text-[11px] font-semibold">Average:</span>
+            <span className="font-black text-sm text-slate-900 dark:text-white">
+              £{avgPrice} <span className="text-[10px] font-medium text-slate-400">/ clean</span>
             </span>
           </div>
-        </div>
-
-        {/* Smart Proximity Clustering Feature Banner */}
-        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-linear-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-indigo-950/40 p-3 rounded-xl border border-sky-100 dark:border-indigo-900/40">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-indigo-600 to-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Compass className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                Smart Proximity Auto-Planner
-              </h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                Group close-by customers into compact daily areas (Day 1, Day 2, Day 3)
-              </p>
-            </div>
+          <div className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 text-[11px] font-semibold">Rounds:</span>
+            <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+              {activeCount} active
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={onOpenAreaPlanner}
-            className="shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            Plan Areas
-          </button>
         </div>
       </div>
 
       {/* Search, Filter & Sort Controls */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-xs space-y-2.5 transition-colors duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 shadow-xs space-y-2.5 transition-colors duration-200">
         {/* Search Input */}
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -233,7 +216,7 @@ export function CustomerDirectoryView({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by customer name, street, phone..."
+            placeholder="Search by name, street, phone..."
             className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
           />
           {searchQuery && (
@@ -328,7 +311,7 @@ export function CustomerDirectoryView({
               className={`bg-white dark:bg-slate-800/90 rounded-2xl border transition-all duration-200 p-4 shadow-xs space-y-3 ${
                 isPaused
                   ? 'border-slate-200 dark:border-slate-800 opacity-70 bg-slate-50/50 dark:bg-slate-900/50'
-                  : 'border-slate-200 dark:border-slate-700/80 hover:border-slate-300'
+                  : 'border-slate-200/90 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'
               }`}
             >
               {/* Card Header */}
@@ -339,18 +322,15 @@ export function CustomerDirectoryView({
                       {customer.name || 'Unnamed Customer'}
                     </h3>
 
-                    {isPaused ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                        Paused
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                        Active
-                      </span>
-                    )}
-
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      Every {customer.frequencyWeeks || 4}w
+                    {/* Compact combined status chip */}
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isPaused
+                          ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                          : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                      }`}
+                    >
+                      {isPaused ? 'Paused' : 'Active'} • Every {customer.frequencyWeeks || 4}w
                     </span>
                   </div>
 

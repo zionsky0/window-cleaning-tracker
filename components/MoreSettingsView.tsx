@@ -28,6 +28,8 @@ interface MoreSettingsViewProps {
   onOpenSync: () => void;
   onOpenExport: () => void;
   onOpenAddCustomer: () => void;
+  onOpenBusinessProfile?: () => void;
+  onReopenOnboarding?: () => void;
 }
 
 export function MoreSettingsView({
@@ -37,12 +39,40 @@ export function MoreSettingsView({
   onOpenSync,
   onOpenExport,
   onOpenAddCustomer,
+  onOpenBusinessProfile,
+  onReopenOnboarding,
 }: MoreSettingsViewProps) {
   const totalCollected = stats.cashAmount + stats.cardAmount;
   const totalCycleEstimate = stats.todayEstimatedEarnings + stats.completedTodayEarnings;
 
   return (
     <div className="space-y-3.5">
+      {/* Reopen Setup Guide Banner */}
+      {onReopenOnboarding && (
+        <div className="bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-900/80 border border-sky-200/80 dark:border-slate-700/80 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 transition-colors duration-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                Setup Guide & Checklist
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                4-step onboarding, UK sample customer loader & daily routine tour
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onReopenOnboarding}
+            className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+          >
+            Open Guide
+          </button>
+        </div>
+      )}
+
       {/* Financial Health Summary Banner */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs transition-colors duration-200">
         <div className="flex items-center gap-2 mb-3">
@@ -229,18 +259,20 @@ export function MoreSettingsView({
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between py-1">
           <div>
             <span className="font-bold text-sm text-slate-800 dark:text-slate-200 block">
-              Business Name
+              Business & Depot Profile
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              {businessName || 'ClearView'}
+              {businessName || 'ClearView'} • GPS depot base, navigation & round settings
             </span>
           </div>
-          <button
-            onClick={onOpenSync}
-            className="text-xs text-brand-600 dark:text-brand-400 font-bold hover:underline cursor-pointer"
-          >
-            Edit in Sync
-          </button>
+          {onOpenBusinessProfile && (
+            <button
+              onClick={onOpenBusinessProfile}
+              className="text-xs text-brand-600 dark:text-brand-400 font-bold hover:underline cursor-pointer"
+            >
+              Edit Profile
+            </button>
+          )}
         </div>
       </div>
     </div>
