@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Send, MessageSquare, Copy, Check, Clock, Banknote, CreditCard, Building } from 'lucide-react';
 import { Customer } from '@/lib/types';
 import { formatDateDisplay } from '@/lib/dateUtils';
@@ -24,7 +24,8 @@ export function PaymentReminderModal({
 
   const bankDetails = useMemo(() => getLocalBankDetails(), []);
 
-  const firstName = customer ? customer.name.split(' ')[0] : '';
+  const firstName = customer ? customer.name.split(' ')[0] : 'there';
+  const customerPrice = customer ? (Number(customer.price) || 0) : 0;
   const cleanedDateText = customer?.lastCleanedDate
     ? `on ${formatDateDisplay(customer.lastCleanedDate)}`
     : 'recently';
@@ -37,18 +38,35 @@ export function PaymentReminderModal({
       line += `\nBank: Sort: ${bankDetails.sortCode} | Acc: ${bankDetails.accountNumber} | Ref: ${refText}`;
     }
     if (bankDetails.payLinkUrl) {
-      line += `\nOr pay online: ${bankDetails.payLinkUrl}`;
+      const url = bankDetails.payLinkUrl.startsWith('http') || bankDetails.payLinkUrl.includes('.')
+        ? (bankDetails.payLinkUrl.startsWith('http') ? bankDetails.payLinkUrl : `https://${bankDetails.payLinkUrl}`)
+        : bankDetails.payLinkUrl;
+      line += `\nOr pay online: ${url}`;
     }
     return line;
   }, [bankDetails, refText]);
 
-  const templateWithBank = `Hi ${firstName}, hope you're well! Just a quick message from ${businessName} regarding your window clean ${cleanedDateText} for £${customer?.price || 0}.${bankLine || '\nPayment can be made by bank transfer or cash.'}\nIf you've already sent payment, please ignore this! Thank you.`;
+  const templateWithBank = useMemo(() => {
+    return `Hi ${firstName}, hope you're well! Just a quick message from ${businessName} regarding your window clean ${cleanedDateText} for £${customerPrice}.${bankLine || '\nPayment can be made by bank transfer or cash.'}\nIf you've already sent payment, please ignore this! Thank you.`;
+  }, [firstName, businessName, cleanedDateText, customerPrice, bankLine]);
 
-  const templateFriendly = `Hi ${firstName}, hope you're having a great week! Just a friendly note from ${businessName} that your window clean of £${customer?.price || 0} is due.${bankLine}\nMany thanks!`;
+  const templateFriendly = useMemo(() => {
+    return `Hi ${firstName}, hope you're having a great week! Just a friendly note from ${businessName} that your window clean of £${customerPrice} is due.${bankLine}\nMany thanks!`;
+  }, [firstName, businessName, customerPrice, bankLine]);
 
-  const templateOverdue = `Hi ${firstName}, this is a gentle reminder from ${businessName} that your window clean balance of £${customer?.price || 0} remains outstanding.${bankLine}\nPlease settle when you have a moment to keep your spot on our regular round. Thank you.`;
+  const templateOverdue = useMemo(() => {
+    return `Hi ${firstName}, this is a gentle reminder from ${businessName} that your window clean balance of £${customerPrice} remains outstanding.${bankLine}\nPlease settle when you have a moment to keep your spot on our regular round. Thank you.`;
+  }, [firstName, businessName, customerPrice, bankLine]);
 
   const [message, setMessage] = useState(templateWithBank);
+
+  // Re-sync message whenever customer changes or modal opens
+  useEffect(() => {
+    if (customer) {
+      setMessage(templateWithBank);
+      setMethod(customer.preferredContact === 'whatsapp' ? 'whatsapp' : 'sms');
+    }
+  }, [customer?.id, customer?.price, customer?.name, templateWithBank]);
 
   if (!customer) return null;
 
@@ -225,10 +243,10 @@ export function PaymentReminderModal({
               type="button"
               onClick={() =>
                 setMessage(
-                  `Hi ${firstName}, ClearView window cleaner here! Just a quick reminder that £${customer.price} is due for your window clean ${cleanedDateText}. Bank transfer or cash is fine. Thanks!`
+                  `Hi ${firstName}, ${businessName} window cleaner here! Just a quick reminder that £${customer.price} is due for your window clean ${cleanedDateText}. Bank transfer or cash is fine. Thanks!`
                 )
               }
-              className="flex-1 py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 text-center transition-colors"
+              className="flex-1 py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 text-center transition-colors cursor-pointer"
             >
               Short & Sweet
             </button>
@@ -236,10 +254,10 @@ export function PaymentReminderModal({
               type="button"
               onClick={() =>
                 setMessage(
-                  `Hi ${firstName}, friendly note regarding your £${customer.price} window clean from ClearView. Please let us know once transferred so we can mark it paid. Have a great day!`
+                  `Hi ${firstName}, friendly note regarding your £${customer.price} window clean from ${businessName}. Please let us know once transferred so we can mark it paid. Have a great day!`
                 )
               }
-              className="flex-1 py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 text-center transition-colors"
+              className="flex-1 py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 text-center transition-colors cursor-pointer"
             >
               Polite Follow-up
             </button>

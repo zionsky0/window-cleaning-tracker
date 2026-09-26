@@ -370,11 +370,13 @@ export function UnpaidView({
       )}
 
       {/* Payment Reminder Modal */}
-      <PaymentReminderModal
-        customer={reminderCustomer}
-        businessName={businessName}
-        onClose={() => setReminderCustomer(null)}
-      />
+      {reminderCustomer && (
+        <PaymentReminderModal
+          customer={reminderCustomer}
+          businessName={businessName}
+          onClose={() => setReminderCustomer(null)}
+        />
+      )}
     </div>
   );
 }
