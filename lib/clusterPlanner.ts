@@ -184,115 +184,86 @@ export function clusterCustomersByProximity(
   const defaultRounds = Math.min(workingDays.length, active.length);
   const k = Math.min(Math.max(1, options.numberOfRounds || defaultRounds), active.length);
 
-  // 1. Group customers on the exact same street/postcode into Micro-Groups so neighbors NEVER get split
-  const streetGroupMap = new Map<string, Customer[]>();
-  active.forEach((c) => {
-    const streetKey = `${extractStreetOrArea(c.address).toLowerCase()}_${(extractPostcode(c.address) || '').split(' ')[0]}`;
-    if (!streetGroupMap.has(streetKey)) {
-      streetGroupMap.set(streetKey, []);
-    }
-    streetGroupMap.get(streetKey)!.push(c);
-  });
-
-  const microGroups = Array.from(streetGroupMap.values());
-
-  // 2. Pick K diverse seeds using K-Means++ furthest-point heuristic on groups
-  // Representative coordinates for each micro-group
-  const groupCentroids = microGroups.map((group) => {
-    let sLat = 0,
-      sLng = 0,
-      cCount = 0;
-    group.forEach((c) => {
-      if (c.lat && c.lng) {
-        sLat += c.lat;
-        sLng += c.lng;
-        cCount++;
-      }
-    });
-    return {
-      lat: cCount > 0 ? sLat / cCount : 0,
-      lng: cCount > 0 ? sLng / cCount : 0,
-      repCustomer: group[0],
-      group,
-    };
-  });
-
-  const seeds: (typeof groupCentroids)[0][] = [groupCentroids[0]];
-  while (seeds.length < k && seeds.length < groupCentroids.length) {
-    let bestCandidate = groupCentroids[0];
+  // 1. Pick K diverse seeds directly from active customers using K-Means++ furthest-point heuristic.
+  // This GUARANTEES that all K working days (Mon, Tue, Wed, Thu, Fri...) get initialized with customers.
+  const seeds: Customer[] = [active[0]];
+  while (seeds.length < k && seeds.length < active.length) {
+    let bestCandidate = active[0];
     let maxDist = -1;
 
-    for (const gc of groupCentroids) {
-      if (seeds.includes(gc)) continue;
+    for (const c of active) {
+      if (seeds.includes(c)) continue;
       let minDistToSeed = Infinity;
       for (const s of seeds) {
-        const d = getCustomerDistanceMiles(gc.repCustomer, s.repCustomer);
+        const d = getCustomerDistanceMiles(c, s);
         if (d < minDistToSeed) minDistToSeed = d;
       }
 
       if (minDistToSeed > maxDist) {
         maxDist = minDistToSeed;
-        bestCandidate = gc;
+        bestCandidate = c;
       }
     }
 
     seeds.push(bestCandidate);
   }
 
-  // 3. Assign groups to clusters with capacity balancing
+  // 2. Initialize cluster buckets with the seeds
   const clusterBuckets: Customer[][] = Array.from({ length: k }, () => []);
-  const unassignedGroups = [...groupCentroids];
+  const unassigned = [...active];
 
-  // Assign seeds first
+  // Assign seeds first (guarantees every day 0..k-1 has at least 1 seed customer)
   seeds.forEach((seed, idx) => {
-    clusterBuckets[idx].push(...seed.group);
-    const uIdx = unassignedGroups.indexOf(seed);
-    if (uIdx !== -1) unassignedGroups.splice(uIdx, 1);
+    clusterBuckets[idx].push(seed);
+    const uIdx = unassigned.indexOf(seed);
+    if (uIdx !== -1) unassigned.splice(uIdx, 1);
   });
 
+  // 3. Assign remaining customers with capacity balancing
+  // targetPerCluster ensures even distribution across all selected working days (Mon, Tue, Wed, Thu, Fri)
   const targetPerCluster = Math.ceil(active.length / k);
 
-  while (unassignedGroups.length > 0) {
-    let bestGroupIdx = -1;
+  while (unassigned.length > 0) {
+    let bestCustomerIdx = -1;
     let bestClusterIdx = -1;
     let bestDist = Infinity;
 
-    for (let i = 0; i < unassignedGroups.length; i++) {
-      const g = unassignedGroups[i];
+    for (let i = 0; i < unassigned.length; i++) {
+      const c = unassigned[i];
 
       for (let cIdx = 0; cIdx < k; cIdx++) {
-        // Soft capacity constraint so days stay reasonably balanced
-        if (clusterBuckets[cIdx].length >= targetPerCluster + 3 && unassignedGroups.length > k - cIdx) {
+        // Soft capacity constraint so all days stay reasonably balanced
+        if (clusterBuckets[cIdx].length >= targetPerCluster + 1 && unassigned.length > (k - cIdx)) {
           continue;
         }
 
-        // Average distance to customers in this cluster
+        // Distance to the cluster: average distance to customers currently in this cluster
         let clusterDist = 0;
         for (const member of clusterBuckets[cIdx]) {
-          clusterDist += getCustomerDistanceMiles(g.repCustomer, member);
+          clusterDist += getCustomerDistanceMiles(c, member);
         }
         clusterDist /= Math.max(1, clusterBuckets[cIdx].length);
 
         if (clusterDist < bestDist) {
           bestDist = clusterDist;
-          bestGroupIdx = i;
+          bestCustomerIdx = i;
           bestClusterIdx = cIdx;
         }
       }
     }
 
-    if (bestGroupIdx === -1 || bestClusterIdx === -1) {
-      // Fallback: assign to smallest cluster
+    if (bestCustomerIdx === -1 || bestClusterIdx === -1) {
+      // Fallback: assign to the cluster with the fewest customers so far
       let minCluster = 0;
       for (let cIdx = 1; cIdx < k; cIdx++) {
         if (clusterBuckets[cIdx].length < clusterBuckets[minCluster].length) {
           minCluster = cIdx;
         }
       }
-      clusterBuckets[minCluster].push(...unassignedGroups.pop()!.group);
+      clusterBuckets[minCluster].push(unassigned.pop()!);
     } else {
-      clusterBuckets[bestClusterIdx].push(...unassignedGroups[bestGroupIdx].group);
-      unassignedGroups.splice(bestGroupIdx, 1);
+      clusterBuckets[bestClusterIdx].push(unassigned[bestCustomerIdx]);
+      unassigned.splice(bestCustomerIdx, 1);
     }
   }
 

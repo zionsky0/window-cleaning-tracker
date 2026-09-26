@@ -32,8 +32,8 @@ export function getDaysDifference(targetDateString: string, baseDateString = get
   const [y1, m1, d1] = targetDateString.split('-').map(Number);
   const [y2, m2, d2] = baseDateString.split('-').map(Number);
 
-  const t1 = new Date(y1, m1 - 1, d1).getTime();
-  const t2 = new Date(y2, m2 - 1, d2).getTime();
+  const t1 = Date.UTC(y1, m1 - 1, d1);
+  const t2 = Date.UTC(y2, m2 - 1, d2);
 
   const diffTime = t1 - t2;
   return Math.round(diffTime / (1000 * 60 * 60 * 24));

@@ -38,13 +38,13 @@ interface SmartAreaPlannerModalProps {
 }
 
 const WEEKDAY_OPTIONS = [
-  { dayNum: 1, label: 'Mon' },
-  { dayNum: 2, label: 'Tue' },
-  { dayNum: 3, label: 'Wed' },
-  { dayNum: 4, label: 'Thu' },
-  { dayNum: 5, label: 'Fri' },
-  { dayNum: 6, label: 'Sat' },
-  { dayNum: 0, label: 'Sun' },
+  { dayNum: 1, label: 'Mon', full: 'Monday' },
+  { dayNum: 2, label: 'Tue', full: 'Tuesday' },
+  { dayNum: 3, label: 'Wed', full: 'Wednesday' },
+  { dayNum: 4, label: 'Thu', full: 'Thursday' },
+  { dayNum: 5, label: 'Fri', full: 'Friday' },
+  { dayNum: 6, label: 'Sat', full: 'Saturday' },
+  { dayNum: 0, label: 'Sun', full: 'Sunday' },
 ];
 
 export function SmartAreaPlannerModal({
@@ -79,13 +79,13 @@ export function SmartAreaPlannerModal({
   // Working days of the week (Default: Monday to Friday)
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
 
-  // Number of daily rounds (e.g. 5 days for Mon-Fri)
-  const [numberOfRounds, setNumberOfRounds] = useState<number>(() => {
-    const activeCount = customers.filter((c) => c && c.status !== 'paused').length;
-    if (activeCount <= 10) return 3;
-    if (activeCount <= 20) return 4;
-    return 5; // Default 5 days (Mon to Fri)
-  });
+  // Cycle span: 1-week cycle (5 days for Mon-Fri) or 2-week rotation (10 days)
+  const [cycleSpan, setCycleSpan] = useState<'1week' | '2weeks'>('1week');
+
+  const numberOfRounds = useMemo(() => {
+    const baseCount = Math.max(1, workingDays.length);
+    return cycleSpan === '2weeks' ? baseCount * 2 : baseCount;
+  }, [workingDays.length, cycleSpan]);
 
   const [startDateString, setStartDateString] = useState<string>(defaultStartDate);
   const [frequencyFilter, setFrequencyFilter] = useState<number | 'all'>('all');
@@ -99,7 +99,11 @@ export function SmartAreaPlannerModal({
       if (workingDays.length === 1) return; // Must have at least 1 working day
       setWorkingDays(workingDays.filter((d) => d !== dayNum));
     } else {
-      setWorkingDays([...workingDays, dayNum].sort((a, b) => a - b));
+      setWorkingDays([...workingDays, dayNum].sort((a, b) => {
+        const orderA = a === 0 ? 7 : a;
+        const orderB = b === 0 ? 7 : b;
+        return orderA - orderB;
+      }));
     }
   };
 
@@ -358,20 +362,22 @@ export function SmartAreaPlannerModal({
             </div>
           </div>
 
-          {/* Configuration Card: Working Days & Split */}
-          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-3 shadow-xs">
-            {/* Working Days Selector */}
+          {/* Configuration Card: Working Days, Cycle Span & Frequency */}
+          <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-4 shadow-xs">
+            {/* Step 1: Working Days Selector */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Which days do you clean each week?
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-md bg-brand-600 text-white text-[11px] font-black flex items-center justify-center">1</span>
+                  Choose Days to Plan Around:
                 </label>
-                <span className="text-[11px] font-semibold text-slate-400">
+                <span className="text-[11px] font-bold text-brand-600 dark:text-brand-400">
                   {workingDays.length} working days selected
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Day pill buttons */}
+              <div className="grid grid-cols-7 gap-1.5">
                 {WEEKDAY_OPTIONS.map((item) => {
                   const isSelected = workingDays.includes(item.dayNum);
                   return (
@@ -379,62 +385,160 @@ export function SmartAreaPlannerModal({
                       key={item.dayNum}
                       type="button"
                       onClick={() => handleToggleDay(item.dayNum)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 border ${
                         isSelected
-                          ? 'bg-brand-600 text-white shadow-xs scale-102'
-                          : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                          ? 'bg-brand-600 text-white border-brand-500 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-700/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
-                      {item.label}
+                      <span className="text-xs font-black">{item.label}</span>
+                      <span className={`text-[9px] font-bold ${isSelected ? 'text-brand-100' : 'text-slate-400'}`}>
+                        {isSelected ? 'Active' : 'Off'}
+                      </span>
                     </button>
                   );
                 })}
+              </div>
 
+              {/* Quick Presets */}
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+                <span className="text-[11px] font-bold text-slate-400">Quick Presets:</span>
                 <button
                   type="button"
                   onClick={() => setWorkingDays([1, 2, 3, 4, 5])}
-                  className="text-[11px] text-brand-600 dark:text-brand-400 font-bold hover:underline ml-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-brand-50 dark:hover:bg-brand-950/40 hover:text-brand-600 transition-colors cursor-pointer"
                 >
-                  Mon–Fri Preset
+                  Mon–Fri (5 Days)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkingDays([1, 2, 3, 4, 5, 6])}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-brand-50 dark:hover:bg-brand-950/40 hover:text-brand-600 transition-colors cursor-pointer"
+                >
+                  Mon–Sat (6 Days)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkingDays([1, 2, 3, 4, 5, 6, 0])}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold hover:bg-brand-50 dark:hover:bg-brand-950/40 hover:text-brand-600 transition-colors cursor-pointer"
+                >
+                  All 7 Days
                 </button>
               </div>
             </div>
 
-            {/* Total Daily Rounds to Split Into */}
-            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Step 2: Cycle Length & Starting Date */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Split Rounds Across:
+                <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 mb-1.5">
+                  <span className="w-5 h-5 rounded-md bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center">2</span>
+                  Planning Rotation Scope:
                 </label>
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                  {[3, 4, 5, 8, 10].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setNumberOfRounds(num)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                        numberOfRounds === num
-                          ? 'bg-brand-600 text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                    >
-                      {num} {num === 5 ? 'Days (1 Wk)' : num === 10 ? 'Days (2 Wks)' : 'Days'}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setCycleSpan('1week')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
+                      cycleSpan === '1week'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    1 Week ({workingDays.length} Days)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCycleSpan('2weeks')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer text-center ${
+                      cycleSpan === '2weeks'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    2 Weeks ({workingDays.length * 2} Days)
+                  </button>
                 </div>
               </div>
 
-              {/* Start Date Picker */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
                   Starting Cycle Date:
                 </label>
                 <input
                   type="date"
                   value={startDateString}
                   onChange={(e) => setStartDateString(e.target.value)}
-                  className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 />
+              </div>
+            </div>
+
+            {/* Step 3: Frequency Cadence Filter */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-md bg-emerald-600 text-white text-[11px] font-black flex items-center justify-center">3</span>
+                  Filter by Cleaning Frequency:
+                </label>
+                <span className="text-[11px] font-bold text-slate-400">
+                  {frequencyFilter === 'all' ? `All (${freqSummary.totalActive})` : `Every ${frequencyFilter}w`}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setFrequencyFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    frequencyFilter === 'all'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  All Frequencies ({freqSummary.totalActive})
+                </button>
+
+                {freqSummary.freq4w > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFrequencyFilter(4)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      frequencyFilter === 4
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    Every 4 Weeks ({freqSummary.freq4w})
+                  </button>
+                )}
+
+                {freqSummary.freq2w > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFrequencyFilter(2)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      frequencyFilter === 2
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    Every 2 Weeks ({freqSummary.freq2w})
+                  </button>
+                )}
+
+                {(freqSummary.freq6w > 0 || freqSummary.freq8w > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => setFrequencyFilter(8)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      frequencyFilter === 8
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    Every 8 Weeks ({freqSummary.freq8w})
+                  </button>
+                )}
               </div>
             </div>
           </div>
