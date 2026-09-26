@@ -465,8 +465,56 @@ function solveMetaheuristicTSP(
   const hasFinish = Boolean(finishPoint?.lat && finishPoint?.lng && Math.abs(finishPoint.lat) > 0.1);
   const candidates: StreetCluster[][] = [];
 
-  // Restart 1: Backward-from-Doorstep Heuristic
-  // Find cluster closest to finish, make it the last stop, and work backward
+  // Multi-Start Nearest Neighbor: test starting from EVERY cluster s = 0..n-1
+  // If startPoint is provided, start from startPoint
+  const startSeeds = startPoint?.lat && Math.abs(startPoint.lat) > 0.1 ? [0] : Array.from({ length: n }, (_, i) => i);
+
+  for (const s of startSeeds) {
+    const unvisited = [...clusters];
+    const tour: StreetCluster[] = [];
+    let curLat: number;
+    let curLng: number;
+
+    if (startPoint?.lat && Math.abs(startPoint.lat) > 0.1) {
+      curLat = startPoint.lat;
+      curLng = startPoint.lng;
+    } else {
+      const first = unvisited.splice(s, 1)[0];
+      tour.push(first);
+      curLat = first.centroidLat;
+      curLng = first.centroidLng;
+    }
+
+    while (unvisited.length > 0) {
+      let bestIdx = 0;
+      let bestScore = Infinity;
+      for (let i = 0; i < unvisited.length; i++) {
+        const d = calculateHaversineMiles(curLat, curLng, unvisited[i].centroidLat, unvisited[i].centroidLng);
+        let score = d;
+        if (hasFinish && unvisited.length <= 3) {
+          // When nearing end of round, incentivize moving toward home
+          const dToFinish = calculateHaversineMiles(
+            unvisited[i].centroidLat,
+            unvisited[i].centroidLng,
+            finishPoint!.lat,
+            finishPoint!.lng
+          );
+          score += dToFinish * 0.9;
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      }
+      const next = unvisited.splice(bestIdx, 1)[0];
+      tour.push(next);
+      curLat = next.centroidLat;
+      curLng = next.centroidLng;
+    }
+    candidates.push(tour);
+  }
+
+  // Backward-from-Doorstep Heuristic (if finishing near home)
   if (hasFinish) {
     const unvisited = [...clusters];
     let bestLastIdx = 0;
@@ -501,47 +549,10 @@ function solveMetaheuristicTSP(
       cur = unvisited.splice(nearestIdx, 1)[0];
       backwardTour.push(cur);
     }
-    // Reverse so the anchor closest to home is at the very end
     candidates.push(backwardTour.reverse());
   }
 
-  // Restart 2: Forward Nearest Neighbor from Start
-  {
-    const unvisited = [...clusters];
-    const forwardTour: StreetCluster[] = [];
-    let curLat = startPoint?.lat && Math.abs(startPoint.lat) > 0.1 ? startPoint.lat : unvisited[0].centroidLat;
-    let curLng = startPoint?.lng && Math.abs(startPoint.lng) > 0.001 ? startPoint.lng : unvisited[0].centroidLng;
-
-    while (unvisited.length > 0) {
-      let bestIdx = 0;
-      let bestScore = Infinity;
-      for (let i = 0; i < unvisited.length; i++) {
-        const dFromCur = calculateHaversineMiles(curLat, curLng, unvisited[i].centroidLat, unvisited[i].centroidLng);
-        let score = dFromCur;
-        if (hasFinish && unvisited.length <= 3) {
-          const dToFinish = calculateHaversineMiles(
-            unvisited[i].centroidLat,
-            unvisited[i].centroidLng,
-            finishPoint!.lat,
-            finishPoint!.lng
-          );
-          // When nearing end, incentivize moving toward finish
-          score += dToFinish * 0.7;
-        }
-        if (score < bestScore) {
-          bestScore = score;
-          bestIdx = i;
-        }
-      }
-      const next = unvisited.splice(bestIdx, 1)[0];
-      forwardTour.push(next);
-      curLat = next.centroidLat;
-      curLng = next.centroidLng;
-    }
-    candidates.push(forwardTour);
-  }
-
-  // Restart 3: Cheapest Insertion
+  // Cheapest Insertion Candidate
   {
     const remaining = [...clusters];
     const insertionTour: StreetCluster[] = [remaining.shift()!];
@@ -556,7 +567,7 @@ function solveMetaheuristicTSP(
         const cand = remaining[c];
         for (let pos = 0; pos <= insertionTour.length; pos++) {
           const testTour = [...insertionTour.slice(0, pos), cand, ...insertionTour.slice(pos)];
-          const cost = calculateTourCost(testTour, startPoint, finishPoint, 1.6);
+          const cost = calculateTourCost(testTour, startPoint, finishPoint, 2.0);
           if (cost < minCostIncrease) {
             minCostIncrease = cost;
             bestClusterIdx = c;
@@ -571,16 +582,17 @@ function solveMetaheuristicTSP(
     candidates.push(insertionTour);
   }
 
-  // Local Search: 2-Opt and Or-Opt on all candidates
+  // Local Search: 2-Opt and Or-Opt on all candidates optimizing against each candidate's own gradient
   let bestGlobalTour = candidates[0] || clusters;
-  let bestGlobalCost = calculateTourCost(bestGlobalTour, startPoint, finishPoint, 1.6);
+  let bestGlobalCost = calculateTourCost(bestGlobalTour, startPoint, finishPoint, 2.0);
 
   for (const cand of candidates) {
     let tour = [...cand];
+    let curTourCost = calculateTourCost(tour, startPoint, finishPoint, 2.0);
     let improved = true;
     let iteration = 0;
 
-    while (improved && iteration < 40) {
+    while (improved && iteration < 50) {
       improved = false;
       iteration++;
 
@@ -588,11 +600,10 @@ function solveMetaheuristicTSP(
       for (let i = 0; i < tour.length - 1; i++) {
         for (let k = i + 1; k < tour.length; k++) {
           const newTour = [...tour.slice(0, i), ...tour.slice(i, k + 1).reverse(), ...tour.slice(k + 1)];
-          const newCost = calculateTourCost(newTour, startPoint, finishPoint, 1.6);
-          if (newCost < bestGlobalCost - 0.005) {
+          const newCost = calculateTourCost(newTour, startPoint, finishPoint, 2.0);
+          if (newCost < curTourCost - 0.0001) {
             tour = newTour;
-            bestGlobalCost = newCost;
-            bestGlobalTour = newTour;
+            curTourCost = newCost;
             improved = true;
             break;
           }
@@ -609,11 +620,10 @@ function solveMetaheuristicTSP(
 
             for (let j = 0; j <= remaining.length; j++) {
               const testTour = [...remaining.slice(0, j), ...block, ...remaining.slice(j)];
-              const testCost = calculateTourCost(testTour, startPoint, finishPoint, 1.6);
-              if (testCost < bestGlobalCost - 0.005) {
+              const testCost = calculateTourCost(testTour, startPoint, finishPoint, 2.0);
+              if (testCost < curTourCost - 0.0001) {
                 tour = testTour;
-                bestGlobalCost = testCost;
-                bestGlobalTour = testTour;
+                curTourCost = testCost;
                 improved = true;
                 break;
               }
@@ -623,6 +633,11 @@ function solveMetaheuristicTSP(
           if (improved) break;
         }
       }
+    }
+
+    if (curTourCost < bestGlobalCost) {
+      bestGlobalCost = curTourCost;
+      bestGlobalTour = tour;
     }
   }
 
@@ -639,12 +654,12 @@ export function solveOptimalTour(
 ): StreetCluster[] {
   if (clusters.length <= 1) return clusters;
 
-  // Use Exact Branch-and-Bound for <= 9 clusters
-  if (clusters.length <= 9) {
+  // Use Exact Branch-and-Bound for <= 10 clusters
+  if (clusters.length <= 10) {
     return solveExactBranchAndBound(clusters, startPoint, finishPoint);
   }
 
-  // Use Multi-Start Metaheuristic for > 9 clusters
+  // Use Multi-Start Metaheuristic for > 10 clusters
   return solveMetaheuristicTSP(clusters, startPoint, finishPoint);
 }
 
@@ -829,7 +844,53 @@ export async function optimizeTradeRoute(
       }
     }
 
-    // Step 5: Sequential OSRM Footpath / Road Routing (using OSRM /route/v1 with our optimal sequence)
+    // Step 4.5: Global 2-Opt Refinement on Final Customer Sequence
+    // Eliminates cross-street backtracking, zig-zagging, and boundary inversions (e.g. 12 -> 14 -> 13)
+    if (orderedCustomers.length >= 4) {
+      const calcCustTourCost = (tour: Customer[]): number => {
+        let cost = 0;
+        let cLat = validStart?.lat ?? tour[0].lat!;
+        let cLng = validStart?.lng ?? tour[0].lng!;
+        for (let i = 0; i < tour.length; i++) {
+          cost += calculateHaversineMiles(cLat, cLng, tour[i].lat!, tour[i].lng!);
+          cLat = tour[i].lat!;
+          cLng = tour[i].lng!;
+        }
+        if (validFinish) {
+          cost += calculateHaversineMiles(cLat, cLng, validFinish.lat, validFinish.lng) * 2.0;
+        }
+        return cost;
+      };
+
+      let custCost = calcCustTourCost(orderedCustomers);
+      let custImproved = true;
+      let custIter = 0;
+
+      while (custImproved && custIter < 30) {
+        custImproved = false;
+        custIter++;
+        for (let i = 0; i < orderedCustomers.length - 1; i++) {
+          for (let k = i + 1; k < orderedCustomers.length; k++) {
+            const testTour = [
+              ...orderedCustomers.slice(0, i),
+              ...orderedCustomers.slice(i, k + 1).reverse(),
+              ...orderedCustomers.slice(k + 1),
+            ];
+            const testCost = calcCustTourCost(testTour);
+            if (testCost < custCost - 0.0001) {
+              orderedCustomers.length = 0;
+              orderedCustomers.push(...testTour);
+              custCost = testCost;
+              custImproved = true;
+              break;
+            }
+          }
+          if (custImproved) break;
+        }
+      }
+    }
+
+    // Step 5: Sequential Pedestrian Footpath / Road Network Routing
     let routeGeometry: [number, number][] | undefined;
     let totalDistanceMiles = 0;
     let totalDurationMinutes = 0;
@@ -843,35 +904,61 @@ export async function optimizeTradeRoute(
     ];
 
     if (sequentialWaypoints.length >= 2 && sequentialWaypoints.length <= 40) {
-      try {
-        const coordsString = sequentialWaypoints
-          .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
-          .join(';');
+      const coordsString = sequentialWaypoints
+        .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
+        .join(';');
 
-        const profile = travelMode === 'walking' ? 'foot' : 'driving';
-        const osrmUrl = `https://router.project-osrm.org/route/v1/${profile}/${coordsString}?overview=full&geometries=geojson`;
+      // When walking: Use OpenStreetMap dedicated pedestrian routing engine (routed-foot)
+      // which uses footpaths, alleyways, parks, and pavements (strictly avoiding highways and dual carriageways).
+      const candidateUrls: string[] = [];
+      if (travelMode === 'walking') {
+        candidateUrls.push(
+          `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
+          `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`
+        );
+      } else {
+        candidateUrls.push(
+          `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
+          `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`
+        );
+      }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+      for (const osrmUrl of candidateUrls) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        const res = await fetch(osrmUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
+          const res = await fetch(osrmUrl, {
+            headers: {
+              'User-Agent': 'ClearViewApp/2.1 (contact@clearview-window-cleaning.app)',
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.code === 'Ok' && data.routes?.[0]) {
-            const route = data.routes[0];
-            totalDistanceMiles = Math.round(route.distance * 0.000621371 * 10) / 10;
-            totalDurationMinutes = Math.round(route.duration / 60);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.code === 'Ok' && data.routes?.[0]) {
+              const route = data.routes[0];
+              totalDistanceMiles = Math.round(route.distance * 0.000621371 * 10) / 10;
 
-            if (route.geometry?.coordinates) {
-              routeGeometry = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+              if (travelMode === 'walking') {
+                totalDurationMinutes = Math.round(route.duration / 60) || estimateWalkMinutes(totalDistanceMiles);
+              } else {
+                totalDurationMinutes = Math.round(route.duration / 60) || estimateDriveMinutes(totalDistanceMiles);
+              }
+
+              if (route.geometry?.coordinates) {
+                routeGeometry = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+              }
+              usedRoadNetwork = true;
+              break; // Optimal routing profile obtained
             }
-            usedRoadNetwork = true;
           }
+        } catch (e) {
+          console.warn(`Routing endpoint ${osrmUrl} fallback:`, e);
         }
-      } catch (e) {
-        console.warn('Sequential OSRM route fetch fallback:', e);
       }
     }
 
