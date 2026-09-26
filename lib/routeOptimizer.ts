@@ -903,61 +903,84 @@ export async function optimizeTradeRoute(
       ...(validFinish ? [{ lat: validFinish.lat, lng: validFinish.lng }] : []),
     ];
 
-    if (sequentialWaypoints.length >= 2 && sequentialWaypoints.length <= 40) {
-      const coordsString = sequentialWaypoints
-        .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
-        .join(';');
-
-      // When walking: Use OpenStreetMap dedicated pedestrian routing engine (routed-foot)
-      // which uses footpaths, alleyways, parks, and pavements (strictly avoiding highways and dual carriageways).
-      const candidateUrls: string[] = [];
-      if (travelMode === 'walking') {
-        candidateUrls.push(
-          `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
-          `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`
-        );
-      } else {
-        candidateUrls.push(
-          `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
-          `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`
-        );
-      }
-
-      for (const osrmUrl of candidateUrls) {
+    if (sequentialWaypoints.length >= 2 && sequentialWaypoints.length <= 80) {
+      // 1. Try internal /api/route proxy FIRST (server-side fetch, avoids browser CORS and user-agent preflight blockers)
+      if (typeof window !== 'undefined') {
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-          const res = await fetch(osrmUrl, {
-            headers: {
-              'User-Agent': 'ClearViewApp/2.1 (contact@clearview-window-cleaning.app)',
-              'Accept': 'application/json',
-            },
-            signal: controller.signal,
+          const proxyRes = await fetch('/api/route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ waypoints: sequentialWaypoints, travelMode }),
           });
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.code === 'Ok' && data.routes?.[0]) {
-              const route = data.routes[0];
-              totalDistanceMiles = Math.round(route.distance * 0.000621371 * 10) / 10;
-
-              if (travelMode === 'walking') {
-                totalDurationMinutes = Math.round(route.duration / 60) || estimateWalkMinutes(totalDistanceMiles);
-              } else {
-                totalDurationMinutes = Math.round(route.duration / 60) || estimateDriveMinutes(totalDistanceMiles);
-              }
-
-              if (route.geometry?.coordinates) {
-                routeGeometry = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
-              }
+          if (proxyRes.ok) {
+            const data = await proxyRes.json();
+            if (data.routeGeometry && data.routeGeometry.length > 0) {
+              routeGeometry = data.routeGeometry;
+              totalDistanceMiles = data.totalDistanceMiles;
+              totalDurationMinutes = data.totalDurationMinutes;
               usedRoadNetwork = true;
-              break; // Optimal routing profile obtained
             }
           }
-        } catch (e) {
-          console.warn(`Routing endpoint ${osrmUrl} fallback:`, e);
+        } catch (err) {
+          console.warn('Internal /api/route proxy failed, falling back to direct fetch:', err);
+        }
+      }
+
+      // 2. Direct fallback (WITHOUT forbidden custom headers like 'User-Agent' which break CORS in browsers)
+      if (!usedRoadNetwork) {
+        const coordsString = sequentialWaypoints
+          .map((p) => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`)
+          .join(';');
+
+        // When walking: Use OpenStreetMap dedicated pedestrian routing engine (routed-foot)
+        // which uses footpaths, alleyways, parks, and pavements (strictly avoiding highways and dual carriageways).
+        const candidateUrls: string[] = [];
+        if (travelMode === 'walking') {
+          candidateUrls.push(
+            `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
+            `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`
+          );
+        } else {
+          candidateUrls.push(
+            `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coordsString}?overview=full&geometries=geojson`,
+            `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson`
+          );
+        }
+
+        for (const osrmUrl of candidateUrls) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            // NOTE: Do NOT set custom headers like 'User-Agent' on client-side fetch.
+            // That triggers CORS preflight OPTIONS which the public routing endpoint rejects.
+            const res = await fetch(osrmUrl, {
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.code === 'Ok' && data.routes?.[0]) {
+                const route = data.routes[0];
+                totalDistanceMiles = Math.round(route.distance * 0.000621371 * 10) / 10;
+
+                if (travelMode === 'walking') {
+                  totalDurationMinutes = Math.round(route.duration / 60) || estimateWalkMinutes(totalDistanceMiles);
+                } else {
+                  totalDurationMinutes = Math.round(route.duration / 60) || estimateDriveMinutes(totalDistanceMiles);
+                }
+
+                if (route.geometry?.coordinates) {
+                  routeGeometry = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+                }
+                usedRoadNetwork = true;
+                break; // Optimal routing profile obtained
+              }
+            }
+          } catch (e) {
+            console.warn(`Direct routing endpoint ${osrmUrl} fallback:`, e);
+          }
         }
       }
     }
