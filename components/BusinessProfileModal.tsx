@@ -21,6 +21,8 @@ import {
   setLocalNavApp,
   getLocalUser,
   setLocalUser,
+  getLocalBankDetails,
+  setLocalBankDetails,
 } from '@/lib/storage';
 
 interface BusinessProfileModalProps {
@@ -41,6 +43,9 @@ export function BusinessProfileModal({
   const [depotAddress, setDepotAddress] = useState('');
   const [navApp, setNavApp] = useState<NavApp>('google');
   const [travelMode, setTravelMode] = useState<TravelMode>('walking');
+  const [bankSortCode, setBankSortCode] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [payLinkUrl, setPayLinkUrl] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -53,6 +58,11 @@ export function BusinessProfileModal({
 
     const startLoc = getLocalStartLocation();
     if (startLoc?.address) setDepotAddress(startLoc.address);
+
+    const bankDetails = getLocalBankDetails();
+    if (bankDetails.sortCode) setBankSortCode(bankDetails.sortCode);
+    if (bankDetails.accountNumber) setBankAccountNumber(bankDetails.accountNumber);
+    if (bankDetails.payLinkUrl) setPayLinkUrl(bankDetails.payLinkUrl);
 
     setNavApp(getLocalNavApp());
     setTravelMode(getLocalTravelMode());
@@ -136,6 +146,13 @@ export function BusinessProfileModal({
     // Save preferences
     setLocalTravelMode(travelMode);
     setLocalNavApp(navApp);
+
+    // Save Bank Transfer & Pay Link details
+    setLocalBankDetails({
+      sortCode: bankSortCode.trim(),
+      accountNumber: bankAccountNumber.trim(),
+      payLinkUrl: payLinkUrl.trim(),
+    });
 
     confetti({ particleCount: 40, spread: 60 });
     onClose();
@@ -257,6 +274,58 @@ export function BusinessProfileModal({
               >
                 🚗 Van Driving
               </button>
+            </div>
+          </div>
+
+          {/* Bank Transfer & Pay Link (for automated SMS / WhatsApp reminders) */}
+          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block text-xs">
+                Bank Transfer & Pay Link (for Reminders)
+              </label>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Automatically included in SMS/WhatsApp payment messages so customers can pay by BACS or online.
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  Sort Code
+                </label>
+                <input
+                  type="text"
+                  value={bankSortCode}
+                  onChange={(e) => setBankSortCode(e.target.value)}
+                  placeholder="e.g. 00-00-00"
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumber}
+                  onChange={(e) => setBankAccountNumber(e.target.value)}
+                  placeholder="e.g. 12345678"
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                Pay Link (Monzo, Revolut, or Stripe)
+              </label>
+              <input
+                type="text"
+                value={payLinkUrl}
+                onChange={(e) => setPayLinkUrl(e.target.value)}
+                placeholder="e.g. monzo.me/yourname or revolut.me/yourname"
+                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-brand-500"
+              />
             </div>
           </div>
         </div>

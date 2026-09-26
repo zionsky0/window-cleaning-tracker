@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Edit3, PoundSterling, Calendar, Phone, MapPin, FileText, Check, Trash2, Banknote, CreditCard, Clock } from 'lucide-react';
+import { X, Edit3, PoundSterling, Calendar, Phone, MapPin, FileText, Check, Trash2, Banknote, CreditCard, Clock, Landmark } from 'lucide-react';
 import { Customer, FrequencyWeeks, PaymentStatus } from '@/lib/types';
 import { getTodayDateString } from '@/lib/dateUtils';
 
@@ -228,45 +228,63 @@ export function EditCustomerModal({
                 Payment Status
               </span>
               <span className="text-[11px] font-normal text-slate-400">
-                {paymentStatus === 'unpaid' ? 'Owed / Pending' : paymentStatus === 'cash' ? 'Paid in Cash' : 'Paid by Card/Bank'}
+                {paymentStatus === 'unpaid'
+                  ? 'Owed / Pending'
+                  : paymentStatus === 'cash'
+                  ? 'Paid in Cash'
+                  : paymentStatus === 'bacs'
+                  ? 'Paid via BACS Transfer'
+                  : 'Paid by Card'}
               </span>
             </label>
-            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs">
               <button
                 type="button"
                 onClick={() => setPaymentStatus('unpaid')}
-                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-1 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentStatus === 'unpaid'
                     ? 'bg-amber-500 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>Unpaid</span>
+                <span className="text-[11px]">Unpaid</span>
               </button>
               <button
                 type="button"
                 onClick={() => setPaymentStatus('cash')}
-                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-1 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentStatus === 'cash'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Banknote className="w-3.5 h-3.5" />
-                <span>Cash</span>
+                <span className="text-[11px]">Cash</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentStatus('bacs')}
+                className={`py-2 px-1 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all cursor-pointer ${
+                  paymentStatus === 'bacs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                <span className="text-[11px]">BACS</span>
               </button>
               <button
                 type="button"
                 onClick={() => setPaymentStatus('card')}
-                className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-1 rounded-lg font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all cursor-pointer ${
                   paymentStatus === 'card'
                     ? 'bg-sky-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>Card</span>
+                <span className="text-[11px]">Card</span>
               </button>
             </div>
           </div>

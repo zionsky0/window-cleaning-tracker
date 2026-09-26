@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Search, X, Banknote, CreditCard, Clock } from 'lucide-react';
+import { Search, X, Banknote, CreditCard, Clock, Landmark } from 'lucide-react';
 
 export type TabType = 'today' | 'week' | 'all' | 'completed';
-export type PaymentFilter = 'all' | 'unpaid' | 'cash' | 'card';
+export type PaymentFilter = 'all' | 'unpaid' | 'cash' | 'card' | 'bacs';
 
 interface FilterBarProps {
   currentTab: TabType;
@@ -20,6 +20,7 @@ interface FilterBarProps {
   unpaidCount: number;
   cashCount: number;
   cardCount: number;
+  bacsCount: number;
 }
 
 export function FilterBar({
@@ -35,6 +36,7 @@ export function FilterBar({
   onPaymentFilterChange,
   unpaidCount,
   cashCount,
+  bacsCount,
   cardCount,
 }: FilterBarProps) {
   return (
@@ -189,6 +191,28 @@ export function FilterBar({
             }`}
           >
             {cashCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onPaymentFilterChange('bacs')}
+          className={`px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+            paymentFilter === 'bacs'
+              ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400/40'
+              : 'bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60'
+          }`}
+        >
+          <Landmark className="w-3 h-3" />
+          <span>BACS</span>
+          <span
+            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              paymentFilter === 'bacs'
+                ? 'bg-indigo-700 text-white'
+                : 'bg-indigo-200/80 dark:bg-indigo-900/80 text-indigo-900 dark:text-indigo-200'
+            }`}
+          >
+            {bacsCount}
           </span>
         </button>
 

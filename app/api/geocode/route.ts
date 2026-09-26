@@ -59,14 +59,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 3. Nominatim geocode with reliable server-side headers
+  // 3. Nominatim geocode with compliant headers
   try {
     const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=${encodeURIComponent(
       query
     )}`;
     const nomRes = await fetch(nomUrl, {
       headers: {
-        'User-Agent': 'ClearView-WindowCleaning-App/2.0 (contact@clearview-tracker.local)',
+        'User-Agent': 'ClearViewApp/2.1 (contact@clearview-window-cleaning.app)',
         'Accept': 'application/json',
       },
       next: { revalidate: 86400 }, // Cache 24h
@@ -92,8 +92,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Fallback default
-  return NextResponse.json({ lat: 53.339, lng: -2.738 });
+  // Not found
+  return NextResponse.json({ error: 'Address coordinates not found' }, { status: 404 });
 }
 
 export async function POST(req: NextRequest) {
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Batch postcodes if any
+    // Batch postcodes if any via free postcodes.io
     const postcodesToQuery: { address: string; pc: string }[] = [];
     for (const addr of missingAddresses) {
       const pc = extractUkPostcode(addr);
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // For any still missing, try Nominatim or town fallback
+    // For any still missing, try regional fallbacks or throttled Nominatim
     for (const addr of missingAddresses) {
       if (results[addr]) continue;
 
@@ -176,12 +176,15 @@ export async function POST(req: NextRequest) {
 
       if (!foundFallback) {
         try {
+          // 1000ms delay to strictly comply with Nominatim Acceptable Use Policy
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
           const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=${encodeURIComponent(
             addr
           )}`;
           const nomRes = await fetch(nomUrl, {
             headers: {
-              'User-Agent': 'ClearView-WindowCleaning-App/2.0 (contact@clearview-tracker.local)',
+              'User-Agent': 'ClearViewApp/2.1 (contact@clearview-window-cleaning.app)',
             },
           });
           if (nomRes.ok) {
@@ -193,7 +196,7 @@ export async function POST(req: NextRequest) {
             }
           }
         } catch (e) {
-          // ignore
+          // ignore error
         }
       }
     }

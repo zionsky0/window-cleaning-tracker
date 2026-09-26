@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { Users, Plus, RefreshCw, Compass, MapPin, X } from 'lucide-react';
-import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp, TravelMode, PaymentStatus } from '@/lib/types';
+import { Customer, AppStats, FrequencyWeeks, ActiveRouteState, NavApp, TravelMode, PaymentStatus, CleanHistoryItem } from '@/lib/types';
 import {
   getTodayDateString,
   getDaysDifference,
@@ -112,10 +112,35 @@ export default function HomePage() {
         .then((res) => res.json())
         .then((data) => {
           if (data.success && Array.isArray(data.customers) && data.customers.length > 0) {
-            // If device local had 0 or server has customers, adopt them immediately
-            if (localCust.length === 0 || data.customers.length >= localCust.length) {
+            if (localCust.length === 0) {
               setCustomers(data.customers);
               setLocalCustomers(data.customers);
+            } else {
+              // Merge by customer ID to protect offline customer additions and edits
+              const merged: Customer[] = [...localCust];
+              for (const serverCust of data.customers) {
+                const localIndex = merged.findIndex((c) => c.id === serverCust.id);
+                if (localIndex === -1) {
+                  merged.push(serverCust);
+                } else {
+                  const localC = merged[localIndex];
+                  const localHist = localC.cleanHistory || [];
+                  const serverHist = serverCust.cleanHistory || [];
+                  const histMap = new Map<string, CleanHistoryItem>();
+                  localHist.forEach((h: CleanHistoryItem) => histMap.set(h.id, h));
+                  serverHist.forEach((h: CleanHistoryItem) => histMap.set(h.id, h));
+
+                  merged[localIndex] = {
+                    ...serverCust,
+                    ...localC,
+                    lastCleanedDate: localC.lastCleanedDate || serverCust.lastCleanedDate,
+                    nextDueDate: localC.lastCleanedDate ? localC.nextDueDate : (serverCust.nextDueDate || localC.nextDueDate),
+                    cleanHistory: Array.from(histMap.values()),
+                  };
+                }
+              }
+              setCustomers(merged);
+              setLocalCustomers(merged);
             }
           }
         })
@@ -158,7 +183,12 @@ export default function HomePage() {
         // Toggle OFF (Uncheck)
         const updatedList = customers.map((c) =>
           c.id === customer.id
-            ? { ...c, lastCleanedDate: undefined, nextDueDate: todayStr }
+            ? {
+                ...c,
+                lastCleanedDate: undefined,
+                nextDueDate: todayStr,
+                cleanHistory: (c.cleanHistory || []).filter((h) => h.date !== todayStr),
+              }
             : c
         );
         updateCustomers(updatedList);
@@ -172,9 +202,24 @@ export default function HomePage() {
         });
 
         const nextDue = addWeeksToDate(todayStr, customer.frequencyWeeks || 4);
+        const historyItem: CleanHistoryItem = {
+          id: `clean_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          date: todayStr,
+          price: customer.price,
+          paymentStatus: customer.paymentStatus || 'unpaid',
+          notes: customer.notes,
+        };
+        const prevHistory = customer.cleanHistory || [];
+        const filteredHistory = prevHistory.filter((h) => h.date !== todayStr);
+
         const updatedList = customers.map((c) =>
           c.id === customer.id
-            ? { ...c, lastCleanedDate: todayStr, nextDueDate: nextDue }
+            ? {
+                ...c,
+                lastCleanedDate: todayStr,
+                nextDueDate: nextDue,
+                cleanHistory: [historyItem, ...filteredHistory],
+              }
             : c
         );
 
@@ -214,18 +259,36 @@ export default function HomePage() {
     updateCustomers(updated);
   };
 
-  // Update customer payment status callback (cash, card, unpaid)
+  // Update customer payment status callback (cash, bacs, card, unpaid)
   const handleUpdatePaymentStatus = useCallback(
     (customer: Customer, newStatus: PaymentStatus) => {
-      const updated = customers.map((c) =>
-        c.id === customer.id
-          ? {
-              ...c,
+      const updated = customers.map((c) => {
+        if (c.id !== customer.id) return c;
+        const paymentDate = newStatus !== 'unpaid' ? todayStr : undefined;
+        let cleanHistory = c.cleanHistory ? [...c.cleanHistory] : [];
+        if (cleanHistory.length > 0) {
+          const todayIdx = cleanHistory.findIndex((h) => h.date === todayStr);
+          if (todayIdx !== -1) {
+            cleanHistory[todayIdx] = {
+              ...cleanHistory[todayIdx],
               paymentStatus: newStatus,
-              paymentDate: newStatus !== 'unpaid' ? todayStr : undefined,
-            }
-          : c
-      );
+              paymentDate,
+            };
+          } else {
+            cleanHistory[0] = {
+              ...cleanHistory[0],
+              paymentStatus: newStatus,
+              paymentDate,
+            };
+          }
+        }
+        return {
+          ...c,
+          paymentStatus: newStatus,
+          paymentDate,
+          cleanHistory,
+        };
+      });
       updateCustomers(updated);
     },
     [customers, todayStr, updateCustomers]
@@ -396,6 +459,8 @@ export default function HomePage() {
       unpaidAmount = 0,
       cashCount = 0,
       cashAmount = 0,
+      bacsCount = 0,
+      bacsAmount = 0,
       cardCount = 0,
       cardAmount = 0;
 
@@ -408,6 +473,9 @@ export default function HomePage() {
         if (pStatus === 'cash') {
           cashCount++;
           cashAmount += c.price;
+        } else if (pStatus === 'bacs') {
+          bacsCount++;
+          bacsAmount += c.price;
         } else if (pStatus === 'card') {
           cardCount++;
           cardAmount += c.price;
@@ -451,6 +519,8 @@ export default function HomePage() {
       unpaidAmount,
       cashCount,
       cashAmount,
+      bacsCount,
+      bacsAmount,
       cardCount,
       cardAmount,
     };
@@ -518,11 +588,13 @@ export default function HomePage() {
       });
     }
 
-    // Secondary Filter by Payment Status (Unpaid, Cash, Card)
+    // Secondary Filter by Payment Status (Unpaid, Cash, BACS, Card)
     if (paymentFilter === 'unpaid') {
       filtered = filtered.filter((c) => (c.paymentStatus || 'unpaid') === 'unpaid');
     } else if (paymentFilter === 'cash') {
       filtered = filtered.filter((c) => c.paymentStatus === 'cash');
+    } else if (paymentFilter === 'bacs') {
+      filtered = filtered.filter((c) => c.paymentStatus === 'bacs');
     } else if (paymentFilter === 'card') {
       filtered = filtered.filter((c) => c.paymentStatus === 'card');
     }
@@ -583,11 +655,12 @@ export default function HomePage() {
           onPaymentFilterChange={setPaymentFilter}
           unpaidCount={stats.unpaidCount}
           cashCount={stats.cashCount}
+          bacsCount={stats.bacsCount}
           cardCount={stats.cardCount}
         />
       )}
 
-      <main className={`flex-1 p-3.5 space-y-3 ${activeRoute?.isActive ? 'pb-52' : 'pb-24'}`}>
+      <main className={`flex-1 p-3.5 space-y-3 ${activeRoute?.isActive ? 'pb-44 sm:pb-36' : 'pb-24'}`}>
         {/* Today Tab: Active rounds, route runner, and cards */}
         {mainTab === 'today' && (
           <>
@@ -775,6 +848,8 @@ export default function HomePage() {
             businessName={businessName}
             cashTotal={stats.cashAmount}
             cashCount={stats.cashCount}
+            bacsTotal={stats.bacsAmount}
+            bacsCount={stats.bacsCount}
             cardTotal={stats.cardAmount}
             cardCount={stats.cardCount}
           />

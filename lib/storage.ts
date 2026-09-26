@@ -1,4 +1,4 @@
-import { Customer, NavApp, ActiveRouteState, TravelMode } from './types';
+import { Customer, NavApp, ActiveRouteState, TravelMode, BankDetails } from './types';
 
 const STORAGE_KEY_CUSTOMERS = 'clearview_rounds_v2';
 const STORAGE_KEY_USER = 'clearview_user_v2';
@@ -20,8 +20,18 @@ export interface CleanerUser {
 export function getLocalCustomers(): Customer[] {
   if (typeof window === 'undefined') return [];
   try {
-    // Clear any legacy demo data from earlier versions
-    if (localStorage.getItem('clearview_customers_v1')) {
+    // Safely migrate any v1 data if v2 is not yet populated
+    const v1Data = localStorage.getItem('clearview_customers_v1');
+    const v2Data = localStorage.getItem(STORAGE_KEY_CUSTOMERS);
+    if (v1Data && !v2Data) {
+      try {
+        const parsedV1 = JSON.parse(v1Data);
+        if (Array.isArray(parsedV1) && parsedV1.length > 0) {
+          localStorage.setItem(STORAGE_KEY_CUSTOMERS, v1Data);
+          localStorage.removeItem('clearview_customers_v1');
+          return parsedV1;
+        }
+      } catch {}
       localStorage.removeItem('clearview_customers_v1');
     }
 
@@ -187,4 +197,27 @@ export function setLocalTravelMode(mode: TravelMode): void {
     console.error('Error saving travel mode:', err);
   }
 }
+
+const STORAGE_KEY_BANK_DETAILS = 'clearview_bank_details_v1';
+
+export function getLocalBankDetails(): BankDetails {
+  if (typeof window === 'undefined') return {};
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_BANK_DETAILS);
+    if (data) return JSON.parse(data);
+  } catch (err) {
+    console.error('Error reading bank details:', err);
+  }
+  return {};
+}
+
+export function setLocalBankDetails(details: BankDetails): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_BANK_DETAILS, JSON.stringify(details));
+  } catch (err) {
+    console.error('Error saving bank details:', err);
+  }
+}
+
 

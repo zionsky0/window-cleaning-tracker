@@ -172,11 +172,20 @@ export function SmartAreaPlannerModal({
         const initialCenter: [number, number] =
           coordsList.length > 0 ? coordsList[0] : [53.4808, -2.2426];
 
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
         const map = L.map(mapContainerRef.current, {
           center: initialCenter,
           zoom: 13,
           zoomControl: false,
+          scrollWheelZoom: false,
+          dragging: !isMobile,
         });
+
+        if (isMobile) {
+          map.on('click', () => {
+            map.dragging.enable();
+          });
+        }
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
@@ -549,6 +558,9 @@ export function SmartAreaPlannerModal({
             <div className="absolute top-2.5 left-2.5 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-2.5 py-1 rounded-xl text-[11px] font-black border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-xs flex items-center gap-1.5">
               <span>🗺️</span>
               <span>Color-Coded Day Clusters (Mon, Tue, Wed...)</span>
+            </div>
+            <div className="absolute bottom-2.5 right-2.5 z-10 bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-200 pointer-events-none sm:hidden">
+              Tap map to pan
             </div>
           </div>
 

@@ -14,7 +14,8 @@ import {
   Pencil,
   MapPin,
   Calendar,
-  Sparkles
+  Sparkles,
+  Landmark,
 } from 'lucide-react';
 import { Customer, PaymentStatus } from '@/lib/types';
 import { formatDateDisplay, getDaysDifference, getTodayDateString } from '@/lib/dateUtils';
@@ -27,6 +28,8 @@ interface UnpaidViewProps {
   businessName?: string;
   cashTotal: number;
   cashCount: number;
+  bacsTotal?: number;
+  bacsCount?: number;
   cardTotal: number;
   cardCount: number;
 }
@@ -38,6 +41,8 @@ export function UnpaidView({
   businessName = 'ClearView',
   cashTotal,
   cashCount,
+  bacsTotal = 0,
+  bacsCount = 0,
   cardTotal,
   cardCount,
 }: UnpaidViewProps) {
@@ -118,23 +123,33 @@ export function UnpaidView({
         </div>
 
         {/* Collected Today / Round Stats */}
-        <div className="mt-4 pt-3 border-t border-white/20 grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-white/10 rounded-xl p-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Banknote className="w-3.5 h-3.5 text-emerald-300" />
-              <span className="font-semibold text-amber-100">Paid Cash:</span>
+        <div className="mt-4 pt-3 border-t border-white/20 grid grid-cols-3 gap-2 text-xs">
+          <div className="bg-white/10 rounded-xl p-2 flex flex-col justify-between">
+            <div className="flex items-center gap-1">
+              <Banknote className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+              <span className="font-semibold text-amber-100 text-[11px] truncate">Cash</span>
             </div>
-            <span className="font-black text-white">
+            <span className="font-black text-white mt-1 text-xs truncate">
               £{cashTotal} ({cashCount})
             </span>
           </div>
 
-          <div className="bg-white/10 rounded-xl p-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-sky-200" />
-              <span className="font-semibold text-amber-100">Paid Card:</span>
+          <div className="bg-white/10 rounded-xl p-2 flex flex-col justify-between">
+            <div className="flex items-center gap-1">
+              <Landmark className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+              <span className="font-semibold text-amber-100 text-[11px] truncate">BACS</span>
             </div>
-            <span className="font-black text-white">
+            <span className="font-black text-white mt-1 text-xs truncate">
+              £{bacsTotal} ({bacsCount})
+            </span>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-2 flex flex-col justify-between">
+            <div className="flex items-center gap-1">
+              <CreditCard className="w-3.5 h-3.5 text-sky-200 shrink-0" />
+              <span className="font-semibold text-amber-100 text-[11px] truncate">Card</span>
+            </div>
+            <span className="font-black text-white mt-1 text-xs truncate">
               £{cardTotal} ({cardCount})
             </span>
           </div>
@@ -281,26 +296,36 @@ export function UnpaidView({
 
               {/* 1-Tap Payment & Reminder Actions Bar */}
               <div className="pt-2.5 border-t border-slate-100 dark:border-slate-700/80 flex items-center justify-between gap-2 flex-wrap">
-                {/* 1-Tap Cash / Card Logger */}
+                {/* 1-Tap Cash / BACS / Card Logger */}
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => onUpdatePaymentStatus(customer, 'cash')}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
                     title="Mark paid in cash"
                   >
                     <Banknote className="w-3.5 h-3.5" />
-                    <span>Paid Cash</span>
+                    <span>Cash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onUpdatePaymentStatus(customer, 'bacs')}
+                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                    title="Mark paid via BACS bank transfer"
+                  >
+                    <Landmark className="w-3.5 h-3.5" />
+                    <span>BACS</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onUpdatePaymentStatus(customer, 'card')}
-                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-                    title="Mark paid by card/transfer"
+                    className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                    title="Mark paid by card"
                   >
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>Paid Card</span>
+                    <span>Card</span>
                   </button>
                 </div>
 

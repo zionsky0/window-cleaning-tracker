@@ -17,7 +17,8 @@ import {
   Navigation,
   Compass,
   Building2,
-  Users
+  Users,
+  Landmark
 } from 'lucide-react';
 import { Customer, PaymentStatus } from '@/lib/types';
 import {
@@ -482,6 +483,10 @@ export function MonthView({
                             {pStatus === 'cash' ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                                 <Banknote className="w-2.5 h-2.5" /> Cash
+                              </span>
+                            ) : pStatus === 'bacs' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                                <Landmark className="w-2.5 h-2.5" /> BACS
                               </span>
                             ) : pStatus === 'card' ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300">

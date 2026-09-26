@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Send, MessageSquare, Copy, Check, Clock, Banknote, CreditCard } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { X, Send, MessageSquare, Copy, Check, Clock, Banknote, CreditCard, Building } from 'lucide-react';
 import { Customer } from '@/lib/types';
 import { formatDateDisplay } from '@/lib/dateUtils';
+import { getLocalBankDetails } from '@/lib/storage';
 
 interface PaymentReminderModalProps {
   customer: Customer | null;
@@ -21,16 +22,35 @@ export function PaymentReminderModal({
     customer?.preferredContact === 'whatsapp' ? 'whatsapp' : 'sms'
   );
 
-  if (!customer) return null;
+  const bankDetails = useMemo(() => getLocalBankDetails(), []);
 
-  const firstName = customer.name.split(' ')[0];
-  const cleanedDateText = customer.lastCleanedDate
+  const firstName = customer ? customer.name.split(' ')[0] : '';
+  const cleanedDateText = customer?.lastCleanedDate
     ? `on ${formatDateDisplay(customer.lastCleanedDate)}`
     : 'recently';
+  const refText = customer?.address ? customer.address.split(',')[0].trim() : (customer?.name || '');
 
-  const defaultMessage = `Hi ${firstName}, hope you're well! Just a quick message from ${businessName} regarding your window clean ${cleanedDateText} for £${customer.price}. Whenever you're ready, payment can be made by bank transfer or cash. If you've already sent payment, please ignore this! Thank you.`;
+  // Formulate bank line
+  const bankLine = useMemo(() => {
+    let line = '';
+    if (bankDetails.sortCode && bankDetails.accountNumber) {
+      line += `\nBank: Sort: ${bankDetails.sortCode} | Acc: ${bankDetails.accountNumber} | Ref: ${refText}`;
+    }
+    if (bankDetails.payLinkUrl) {
+      line += `\nOr pay online: ${bankDetails.payLinkUrl}`;
+    }
+    return line;
+  }, [bankDetails, refText]);
 
-  const [message, setMessage] = useState(defaultMessage);
+  const templateWithBank = `Hi ${firstName}, hope you're well! Just a quick message from ${businessName} regarding your window clean ${cleanedDateText} for £${customer?.price || 0}.${bankLine || '\nPayment can be made by bank transfer or cash.'}\nIf you've already sent payment, please ignore this! Thank you.`;
+
+  const templateFriendly = `Hi ${firstName}, hope you're having a great week! Just a friendly note from ${businessName} that your window clean of £${customer?.price || 0} is due.${bankLine}\nMany thanks!`;
+
+  const templateOverdue = `Hi ${firstName}, this is a gentle reminder from ${businessName} that your window clean balance of £${customer?.price || 0} remains outstanding.${bankLine}\nPlease settle when you have a moment to keep your spot on our regular round. Thank you.`;
+
+  const [message, setMessage] = useState(templateWithBank);
+
+  if (!customer) return null;
 
   // Clean phone number for links
   const rawPhone = (customer.phone || '').replace(/\s+/g, '');
@@ -127,9 +147,51 @@ export function PaymentReminderModal({
 
           {/* Message Preview & Edit */}
           <div>
+            {/* Quick Templates */}
+            <div className="mb-2.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Message Template:
+              </label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setMessage(templateWithBank)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    message === templateWithBank
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Bank Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessage(templateFriendly)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    message === templateFriendly
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Friendly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMessage(templateOverdue)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    message === templateOverdue
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  Overdue Notice
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                Message Preview:
+                Message Text:
               </label>
               <button
                 type="button"

@@ -15,6 +15,7 @@ import {
   Compass,
   Banknote,
   CreditCard,
+  Landmark,
 } from 'lucide-react';
 import { Customer, NavApp, TravelMode, PaymentStatus } from '@/lib/types';
 import { getSingleStopNavUrl } from '@/lib/routeOptimizer';
@@ -106,7 +107,7 @@ export function RouteRunnerBar({
   }
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-50 bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 text-white shadow-2xl animate-in slide-in-from-bottom duration-200">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/98 backdrop-blur-lg border-t border-slate-800 text-white shadow-2xl animate-in slide-in-from-bottom duration-200">
       <div className="max-w-2xl mx-auto px-4 pt-3 pb-4 space-y-2.5">
         {/* Progress bar */}
         <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -226,6 +227,8 @@ export function RouteRunnerBar({
               <span className="text-slate-300 font-bold">
                 {currentCustomer.paymentStatus === 'cash'
                   ? 'Paid Cash'
+                  : currentCustomer.paymentStatus === 'bacs'
+                  ? 'Paid BACS'
                   : currentCustomer.paymentStatus === 'card'
                   ? 'Paid Card'
                   : 'Unpaid'}
@@ -254,6 +257,18 @@ export function RouteRunnerBar({
               >
                 <Banknote className="w-3 h-3" />
                 <span>Cash</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdatePaymentStatus(currentCustomer, 'bacs')}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  currentCustomer.paymentStatus === 'bacs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Landmark className="w-3 h-3" />
+                <span>BACS</span>
               </button>
               <button
                 type="button"

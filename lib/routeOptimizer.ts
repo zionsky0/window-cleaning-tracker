@@ -62,9 +62,10 @@ export function parseStreetAndNumber(address?: string | null): {
   houseNumber: number | null;
   streetName: string;
   postcode: string | null;
+  isEven: boolean | null;
 } {
   if (!address || typeof address !== 'string') {
-    return { houseNumber: null, streetName: 'Round', postcode: null };
+    return { houseNumber: null, streetName: 'Round', postcode: null, isEven: null };
   }
 
   const postcode = extractPostcode(address);
@@ -75,16 +76,23 @@ export function parseStreetAndNumber(address?: string | null): {
 
   cleanAddress = cleanAddress.replace(/,\s*$/, '').trim();
   const parts = cleanAddress.split(',').map((p) => p.trim()).filter(Boolean);
-  const firstPart = parts[0] || address;
+  
+  // If first part is "Flat X" or "Unit X" or "Apartment X", inspect the second part for street address
+  let streetCandidate = parts[0] || address;
+  if (/^(Flat|Unit|Apartment|Room|Suite|Floor)\b/i.test(streetCandidate) && parts.length > 1) {
+    streetCandidate = parts[1];
+  }
 
-  const numMatch = firstPart.match(/^(\d+)/);
+  const numMatch = streetCandidate.match(/^(\d+)/);
   const houseNumber = numMatch ? parseInt(numMatch[1], 10) : null;
-  const streetName = firstPart.replace(/^\d+[\w-]*\s+/, '').trim() || firstPart;
+  const isEven = houseNumber !== null ? houseNumber % 2 === 0 : null;
+  const streetName = streetCandidate.replace(/^\d+[\w-]*\s+/, '').trim() || streetCandidate;
 
   return {
     houseNumber,
     streetName: streetName.toLowerCase(),
     postcode,
+    isEven,
   };
 }
 
@@ -660,16 +668,6 @@ export async function optimizeTradeRoute(
     const baseLat = validStart?.lat ?? validFinish?.lat ?? (knownCoords.length > 0 ? knownCoords[0].lat! : 53.339);
     const baseLng = validStart?.lng ?? validFinish?.lng ?? (knownCoords.length > 0 ? knownCoords[0].lng! : -2.738);
 
-    for (let i = 0; i < updatedCustomers.length; i++) {
-      if (!updatedCustomers[i].lat || !updatedCustomers[i].lng || !Number.isFinite(updatedCustomers[i].lat)) {
-        updatedCustomers[i] = {
-          ...updatedCustomers[i],
-          lat: baseLat + (i + 1) * 0.0015,
-          lng: baseLng + (i + 1) * 0.0015,
-        };
-      }
-    }
-
     // Step 2: Group customers into Street Clusters
     const clusterMap = new Map<string, Customer[]>();
     for (const c of updatedCustomers) {
@@ -683,16 +681,6 @@ export async function optimizeTradeRoute(
 
     const clusters: StreetCluster[] = [];
     clusterMap.forEach((clusterCustomers, key) => {
-      // Natural house number sort initially
-      clusterCustomers.sort((a: Customer, b: Customer) => {
-        const aInfo = parseStreetAndNumber(a.address);
-        const bInfo = parseStreetAndNumber(b.address);
-        if (aInfo.houseNumber !== null && bInfo.houseNumber !== null) {
-          return aInfo.houseNumber - bInfo.houseNumber;
-        }
-        return (a.address || '').localeCompare(b.address || '');
-      });
-
       const withCoords = clusterCustomers.filter((c: Customer) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
       const hasCoords = withCoords.length > 0;
       const avgLat = hasCoords
@@ -701,6 +689,49 @@ export async function optimizeTradeRoute(
       const avgLng = hasCoords
         ? withCoords.reduce((s: number, c: Customer) => s + (c.lng || 0), 0) / withCoords.length
         : baseLng;
+
+      // Assign cluster centroid to any customer in this cluster lacking coords (no fake diagonal offsets)
+      clusterCustomers.forEach((c) => {
+        if (!c.lat || !c.lng || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) {
+          c.lat = avgLat;
+          c.lng = avgLng;
+        }
+      });
+
+      // Serpentine ordering on the street: separate odd and even house numbers
+      // Walks down odd side (1, 3, 5) then returns up even side (6, 4, 2) to eliminate crossing road with hoses
+      const odds: Customer[] = [];
+      const evens: Customer[] = [];
+      const unnumbered: Customer[] = [];
+
+      clusterCustomers.forEach((c) => {
+        const info = parseStreetAndNumber(c.address);
+        if (info.houseNumber !== null) {
+          if (info.isEven) {
+            evens.push(c);
+          } else {
+            odds.push(c);
+          }
+        } else {
+          unnumbered.push(c);
+        }
+      });
+
+      if (odds.length > 0 && evens.length > 0) {
+        odds.sort((a, b) => (parseStreetAndNumber(a.address).houseNumber || 0) - (parseStreetAndNumber(b.address).houseNumber || 0));
+        evens.sort((a, b) => (parseStreetAndNumber(b.address).houseNumber || 0) - (parseStreetAndNumber(a.address).houseNumber || 0));
+        clusterCustomers.length = 0;
+        clusterCustomers.push(...odds, ...evens, ...unnumbered);
+      } else {
+        clusterCustomers.sort((a: Customer, b: Customer) => {
+          const aInfo = parseStreetAndNumber(a.address);
+          const bInfo = parseStreetAndNumber(b.address);
+          if (aInfo.houseNumber !== null && bInfo.houseNumber !== null) {
+            return aInfo.houseNumber - bInfo.houseNumber;
+          }
+          return (a.address || '').localeCompare(b.address || '');
+        });
+      }
 
       clusters.push({
         key,
