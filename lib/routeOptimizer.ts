@@ -261,14 +261,51 @@ export async function geocodeCustomers(
         const pcMap = new Map<string, { lat: number; lng: number }>();
 
         if (Array.isArray(data.result)) {
+          const unmappedList: string[] = [];
           for (const item of data.result) {
+            const normalPc = item.query.replace(/\s+/g, '').toUpperCase();
             if (item.result?.latitude && item.result?.longitude) {
-              const normalPc = item.query.replace(/\s+/g, '').toUpperCase();
               pcMap.set(normalPc, {
                 lat: item.result.latitude,
                 lng: item.result.longitude,
               });
+            } else {
+              unmappedList.push(normalPc);
             }
+          }
+
+          // Check terminated postcodes and outcodes for any unmapped
+          for (const unmappedPc of unmappedList) {
+            try {
+              const termRes = await fetch(
+                `https://api.postcodes.io/terminated_postcodes/${encodeURIComponent(unmappedPc)}`
+              );
+              if (termRes.ok) {
+                const termData = await termRes.json();
+                if (termData?.result?.latitude && termData?.result?.longitude) {
+                  pcMap.set(unmappedPc, {
+                    lat: termData.result.latitude,
+                    lng: termData.result.longitude,
+                  });
+                  continue;
+                }
+              }
+              const outcode = unmappedPc.replace(/[0-9][A-Z]{2}$/, '');
+              if (outcode && outcode.length >= 2) {
+                const outRes = await fetch(
+                  `https://api.postcodes.io/outcodes/${encodeURIComponent(outcode)}`
+                );
+                if (outRes.ok) {
+                  const outData = await outRes.json();
+                  if (outData?.result?.latitude && outData?.result?.longitude) {
+                    pcMap.set(unmappedPc, {
+                      lat: outData.result.latitude,
+                      lng: outData.result.longitude,
+                    });
+                  }
+                }
+              }
+            } catch {}
           }
         }
 
@@ -680,21 +717,35 @@ export async function optimizeTradeRoute(
     }
 
     const clusters: StreetCluster[] = [];
+    let unmappedClusterIndex = 0;
+
     clusterMap.forEach((clusterCustomers, key) => {
       const withCoords = clusterCustomers.filter((c: Customer) => Number.isFinite(c.lat) && Number.isFinite(c.lng));
       const hasCoords = withCoords.length > 0;
-      const avgLat = hasCoords
+      let avgLat = hasCoords
         ? withCoords.reduce((s: number, c: Customer) => s + (c.lat || 0), 0) / withCoords.length
         : baseLat;
-      const avgLng = hasCoords
+      let avgLng = hasCoords
         ? withCoords.reduce((s: number, c: Customer) => s + (c.lng || 0), 0) / withCoords.length
         : baseLng;
 
-      // Assign cluster centroid to any customer in this cluster lacking coords (no fake diagonal offsets)
-      clusterCustomers.forEach((c) => {
+      // If this cluster completely lacks coordinates, assign a deterministic offset around baseLat/baseLng
+      // so distinct unmapped streets do not collapse onto the exact same pin location
+      if (!hasCoords) {
+        unmappedClusterIndex++;
+        const clusterAngle = (unmappedClusterIndex * 2 * Math.PI) / 8;
+        const clusterDist = 0.0035 + (unmappedClusterIndex * 0.001); // ~350-500 meters
+        avgLat = baseLat + Math.sin(clusterAngle) * clusterDist;
+        avgLng = baseLng + Math.cos(clusterAngle) * (clusterDist / Math.cos((baseLat * Math.PI) / 180));
+      }
+
+      // Assign coordinates with micro-offsets per customer so multiple houses are distinct and individually clickable
+      clusterCustomers.forEach((c, cIdx) => {
         if (!c.lat || !c.lng || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) {
-          c.lat = avgLat;
-          c.lng = avgLng;
+          const houseAngle = (cIdx * 2 * Math.PI) / Math.max(clusterCustomers.length, 1);
+          const houseRadius = 0.00018; // ~18 meters
+          c.lat = avgLat + Math.sin(houseAngle) * houseRadius;
+          c.lng = avgLng + Math.cos(houseAngle) * (houseRadius / Math.cos((avgLat * Math.PI) / 180));
         }
       });
 

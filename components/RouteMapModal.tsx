@@ -71,6 +71,7 @@ export function RouteMapModal({
 }: RouteMapModalProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<any>(null);
+  const stopMarkersMapRef = useRef<Map<number, any>>(new Map());
 
   // Active round selection scope (Today, Week, All)
   const [scope, setScope] = useState<RouteScope>('today');
@@ -414,6 +415,19 @@ export function RouteMapModal({
     setOrderedStops(renumbered);
   };
 
+  // Center & zoom map to a specific stop pin
+  const handleFocusStopOnMap = (stopIndex: number) => {
+    const marker = stopMarkersMapRef.current.get(stopIndex);
+    if (marker && leafletMapRef.current) {
+      const latLng = marker.getLatLng();
+      leafletMapRef.current.setView(latLng, 16, { animate: true });
+      marker.openPopup();
+      if (mapContainerRef.current) {
+        mapContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
   // Leaflet Map Lifecycle & Tile Rendering
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return;
@@ -480,7 +494,7 @@ export function RouteMapModal({
 
       // 5. Plot valid points, start depot, and road route
       const validPoints: [number, number][] = [];
-      const markersData: Array<{ lat: number; lng: number; label: string; customer: Customer }> = [];
+      const markersData: Array<{ lat: number; lng: number; label: string; customer: Customer; stopIndex: number }> = [];
 
       // Add Start Depot marker if coordinates exist
       if (startCoords?.lat && startCoords?.lng) {
@@ -520,16 +534,40 @@ export function RouteMapModal({
         `);
       }
 
+      stopMarkersMapRef.current.clear();
+      const coordBuckets = new Map<string, number>();
+
       orderedStops.forEach((stop) => {
-        if (stop.customer.lat && stop.customer.lng) {
-          validPoints.push([stop.customer.lat, stop.customer.lng]);
-          markersData.push({
-            lat: stop.customer.lat,
-            lng: stop.customer.lng,
-            label: String(stop.stopIndex),
-            customer: stop.customer,
-          });
+        let lat = stop.customer.lat;
+        let lng = stop.customer.lng;
+
+        // Guaranteed fallback anchor if customer still lacks coordinates
+        if (!lat || !lng || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+          const anchor = validPoints[validPoints.length - 1] || [53.339, -2.738];
+          lat = anchor[0] + (stop.stopIndex * 0.00035);
+          lng = anchor[1] + (stop.stopIndex * 0.00035);
         }
+
+        // Anti-stacking spiderfy jitter: ensure every stop pin is visible and clickable even on duplicate postcodes
+        const bucketKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const count = coordBuckets.get(bucketKey) || 0;
+        coordBuckets.set(bucketKey, count + 1);
+
+        if (count > 0) {
+          const angle = (count * 2 * Math.PI) / 6;
+          const radius = 0.00022 * Math.ceil(count / 6);
+          lat += Math.sin(angle) * radius;
+          lng += Math.cos(angle) * (radius / Math.cos((lat * Math.PI) / 180));
+        }
+
+        validPoints.push([lat, lng]);
+        markersData.push({
+          lat,
+          lng,
+          label: String(stop.stopIndex),
+          customer: stop.customer,
+          stopIndex: stop.stopIndex,
+        });
       });
 
       if (validPoints.length > 0) {
@@ -566,6 +604,7 @@ export function RouteMapModal({
               font-weight: 800;
               border: 2px solid white;
               box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+              cursor: pointer;
             ">
               ${m.label}
             </div>
@@ -586,6 +625,7 @@ export function RouteMapModal({
               <span style="color: #059669; font-weight: bold;">£${m.customer.price}</span>
             </div>
           `);
+          stopMarkersMapRef.current.set(m.stopIndex, marker);
         });
 
         // Add Finish Home marker if finishAtHome and coordinates exist
@@ -627,15 +667,21 @@ export function RouteMapModal({
           `);
         }
 
-        // Fit bounds around the plotted route
+        // Fit bounds around ALL plotted markers and polyline
         try {
-          if (routeLine) {
-            map.fitBounds(routeLine.getBounds(), { padding: [35, 35] });
-          } else if (validPoints.length === 1) {
-            map.setView(validPoints[0], 14);
-          } else {
-            const bounds = L.latLngBounds(validPoints.map((p) => L.latLng(p[0], p[1])));
-            map.fitBounds(bounds, { padding: [35, 35] });
+          const allPointsToFit: [number, number][] = [...validPoints];
+          if (routeGeometry && routeGeometry.length > 0) {
+            allPointsToFit.push(...routeGeometry);
+          }
+          if (finishAtHome && finishCoords?.lat && finishCoords?.lng) {
+            allPointsToFit.push([finishCoords.lat, finishCoords.lng]);
+          }
+
+          if (allPointsToFit.length >= 2) {
+            const bounds = L.latLngBounds(allPointsToFit.map((p) => L.latLng(p[0], p[1])));
+            map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
+          } else if (allPointsToFit.length === 1) {
+            map.setView(allPointsToFit[0], 15);
           }
         } catch {}
       }
@@ -1069,14 +1115,23 @@ export function RouteMapModal({
                           <Check className="w-3.5 h-3.5 stroke-[3]" />
                         </button>
 
-                        <span className="w-6 h-6 rounded-full bg-brand-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleFocusStopOnMap(stop.stopIndex)}
+                          className="w-6 h-6 rounded-full bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center shrink-0 transition-transform cursor-pointer shadow-xs"
+                          title="Click to view pin on map"
+                        >
                           {stop.stopIndex}
-                        </span>
+                        </button>
 
-                        <div className="min-w-0">
+                        <div
+                          className="min-w-0 cursor-pointer flex-1"
+                          onClick={() => handleFocusStopOnMap(stop.stopIndex)}
+                          title="Click to view pin on map"
+                        >
                           <div className="flex items-center gap-2">
                             <span
-                              className={`font-bold text-xs truncate ${
+                              className={`font-bold text-xs truncate hover:text-brand-600 dark:hover:text-brand-400 transition-colors ${
                                 isDone
                                   ? 'line-through text-slate-400 dark:text-slate-500'
                                   : 'text-slate-900 dark:text-white'
@@ -1108,6 +1163,16 @@ export function RouteMapModal({
                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 hidden sm:inline mr-1">
                           {stop.distanceFromPrevMiles} mi • {stop.travelMinutesFromPrev || stop.driveMinutesFromPrev || 1}m
                         </span>
+
+                        {/* Focus on map pin button */}
+                        <button
+                          type="button"
+                          onClick={() => handleFocusStopOnMap(stop.stopIndex)}
+                          className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          title="View on map"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                        </button>
 
                         {/* Single-leg Nav button */}
                         <button
